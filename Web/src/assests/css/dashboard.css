@@ -1,0 +1,35 @@
+/* Dashboard specific tweaks to match the reference */
+.quick-actions-row .btn {
+  background-color: #4F46E5;
+  border: none;
+}
+
+.quick-actions-row .btn:hover {
+  background-color: #4338CA;
+}
+
+.chart-placeholder {
+  background-color: #f8f9fa;
+  border: 1px solid #eee;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recommendation-card img {
+  height: 180px;
+  object-fit: cover;
+}
+
+.btn-discover {
+  background-color: #ec4899;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+}
+
+.btn-discover:hover {
+  background-color: #db2777;
+  color: #fff;
+}

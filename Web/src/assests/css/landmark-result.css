@@ -1,0 +1,5 @@
+.landmark-result-page .ratio-21x9 { --bs-aspect-ratio: 42.857%; }
+.avatar-circle { width: 32px; height: 32px; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-weight:600; }
+.object-fit-cover { object-fit: cover; }
+
+

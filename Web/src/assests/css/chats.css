@@ -1,0 +1,28 @@
+.chat-page .chat-avatar { width: 40px; height: 40px; object-fit: cover; }
+.chat-page .xsmall { font-size: .8rem; }
+.chat-thread { overflow: auto; background: #F8FAFC; }
+.msg { margin-bottom: .75rem; }
+.msg .bubble { background: #e9ecef; padding: .6rem .8rem; border-radius: 14px; display: inline-block; max-width: 80%; }
+.msg .bubble.primary { background: #4F46E5; color: #fff; }
+.msg.msg-out { text-align: right; }
+.msg .time { font-size: .72rem; color: #94a3b8; margin-top: .2rem; }
+.status-dot { width: 8px; height: 8px; background: #22c55e; border-radius: 50%; display:inline-block; }
+
+/* WhatsApp-like two-column shell */
+.chat-shell { display: grid; grid-template-columns: 380px 1fr; height: calc(100vh - 72px); }
+.chat-list-col { background:#fff; }
+.chat-thread-col { background:#fff; }
+.chat-list { overflow:auto; height: calc(100% - 120px); }
+.chat-header { background:#fff; }
+.chat-input { background:#fff; }
+.chat-thread { height: calc(100% - 98px); }
+
+/* Mobile: list first, thread fullscreen on selection (later with logic) */
+@media (max-width: 991.98px) {
+  .chat-shell { grid-template-columns: 1fr; height: calc(100vh - 56px); }
+  .chat-list { height: calc(100% - 120px); }
+  .chat-thread { height: calc(100% - 98px); }
+}
+
+
+

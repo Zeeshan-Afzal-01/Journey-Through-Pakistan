@@ -1,0 +1,28 @@
+.landmark-map {
+  height: 520px;
+}
+
+@media (max-width: 991.98px) {
+  .landmark-map {
+    height: 360px;
+  }
+}
+
+.upload-dropzone {
+  border-style: dashed !important;
+  background: #fafafa;
+}
+.upload-dropzone.active {
+  background: #f0f4ff;
+}
+
+.nearest-thumb {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+}
+
+.x-small {
+  font-size: 0.75rem;
+}
+

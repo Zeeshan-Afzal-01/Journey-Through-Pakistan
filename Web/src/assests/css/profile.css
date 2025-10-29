@@ -1,0 +1,19 @@
+.profile-page h2 { letter-spacing: -0.2px; }
+
+.profile-avatar { width: 160px; height: 160px; }
+.profile-avatar-img { width: 160px; height: 160px; object-fit: cover; }
+.profile-avatar .upload-btn { bottom: -12px; left: 50%; transform: translateX(-50%); }
+
+.profile-activity .activity-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #6366f1; display: inline-block;
+}
+.profile-activity li:last-child { border-bottom: 0 !important; }
+
+.contribution-card img { height: 140px; object-fit: cover; }
+
+@media (min-width: 992px) {
+  .profile-page .profile-avatar { width: 180px; height: 180px; }
+  .profile-page .profile-avatar-img { width: 180px; height: 180px; }
+}
+
+

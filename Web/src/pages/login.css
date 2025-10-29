@@ -1,0 +1,156 @@
+/* src/styles/login.css */
+
+/* theme colors */
+:root {
+    --bg: #2f3136;
+    /* dark page background */
+    --card-bg: #ffffff;
+    /* card background */
+    --primary: #2b6ef6;
+    /* blue from screenshot */
+    --primary-hover: #255ad1;
+    --muted: #6c757d;
+    --input-border: #e9ecef;
+}
+
+/* page background */
+.login-page {
+    background: var(--bg);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+/* card */
+.login-card {
+    width: 100%;
+    max-width: 420px;
+    /* narrow centered card like screenshot */
+    background: var(--card-bg);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    padding: 24px;
+    /* inner padding (>= 16px) */
+}
+
+/* heading + subtitle */
+.login-card .title {
+    font-weight: 700;
+    text-align: center;
+    margin-bottom: 0.25rem;
+}
+
+.login-card .subtitle {
+    font-size: 0.9rem;
+    color: var(--muted);
+    text-align: center;
+    margin-bottom: 1.25rem;
+}
+
+/* inputs - match visual height and border like screenshot */
+.login-card .form-control {
+    border: 1px solid var(--input-border);
+    min-height: 44px;
+    padding: 0.5rem 0.75rem;
+    box-shadow: none;
+}
+
+/* small muted link (forgot) aligned right */
+.forgot-link {
+    float: right;
+    font-size: 0.9rem;
+    color: var(--primary);
+    text-decoration: none;
+}
+
+.forgot-link:hover {
+    text-decoration: underline;
+}
+
+/* primary button */
+.btn-primary-custom {
+    background: var(--primary);
+    border: none;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    width: 100%;
+}
+
+.btn-primary-custom:hover {
+    background: var(--primary-hover);
+}
+
+/* separator */
+.or-sep {
+    text-align: center;
+    margin: 1rem 0;
+    color: var(--muted);
+    position: relative;
+}
+
+.or-sep::before,
+.or-sep::after {
+    content: "";
+    height: 1px;
+    background: #ececec;
+    position: absolute;
+    top: 50%;
+    width: 35%;
+}
+
+.or-sep::before {
+    left: 0;
+}
+
+.or-sep::after {
+    right: 0;
+}
+
+/* social buttons - outlined look */
+.social-btn {
+    width: 100%;
+    border-radius: 6px;
+    height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: .5rem;
+    border: 1px solid #e6e6e6;
+    background: #fff;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.social-btn:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* small bottom text */
+.login-card .bottom-note {
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-top: 0.6rem;
+}
+
+.login-card .bottom-note a {
+    color: var(--primary);
+    text-decoration: none;
+    font-weight: 600;
+}
+
+.login-card .bottom-note a:hover {
+    text-decoration: underline;
+}
+
+/* responsive tweaks - center card on smaller screens is already handled */
+@media (max-width: 576px) {
+    .login-card {
+        padding: 18px;
+    }
+}

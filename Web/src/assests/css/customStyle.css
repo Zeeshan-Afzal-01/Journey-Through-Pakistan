@@ -1,0 +1,20 @@
+.navbar-container{
+position: sticky;
+top: 0;
+left: 0;
+width: 100%;
+background: #FFFFFFFF;
+border-radius: 0px 0px 0px 0px;
+box-shadow: 0px 0px 1px #171a1f12, 0px 0px 2px #171a1f1F;
+z-index: 1030; /* above content, similar to Bootstrap navbar */
+}
+.navbar-companyname {
+position: absolute;
+top: 17px;
+left: 106px;
+font-family: Inter;
+font-size: 18px;
+line-height: 28px;
+font-weight: 600;
+color: #242524FF;
+}
