@@ -1,6 +1,8 @@
 import api from "./api.jsx";
 
 export const listPosts = () => api.get("/posts");
+export const listPostsByAuthor = (authorId) => api.get(`/posts`, { params: { author: authorId } });
+export const searchPosts = (q) => api.get('/posts', { params: { q } });
 export const createPost = (payload) => {
   // payload can be { text, imageUrl, place, feeling } or { text, file, place, feeling }
   if (payload?.file) {

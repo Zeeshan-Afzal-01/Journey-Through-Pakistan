@@ -25,4 +25,20 @@ export const markAllRead = async (req, res) => {
   }
 };
 
+// Activity feed for actions performed by a user (likes/comments/shares)
+export const listActivity = async (req, res) => {
+  try {
+    const actorId = req.query.actor || req.user?.id;
+    if (!actorId) return res.status(401).json({ message: "Unauthorized" });
+    const notifications = await Notification.find({ actor: actorId })
+      .sort({ createdAt: -1 })
+      .populate("actor", "name profilePicture")
+      .populate("recipient", "name")
+      .lean();
+    res.json(notifications);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch activity", error: err.message });
+  }
+};
+
 

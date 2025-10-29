@@ -33,3 +33,15 @@ export const resendOtp = (payload) => api.post("/users/resend-otp", payload);
 
 // LOGOUT (optional)
 export const logout = () => api.post("/users/logout");
+
+// UPDATE ME (profile picture and other fields)
+export const updateMe = (data) => {
+  const fd = new FormData();
+  if (data.profilePicture) fd.append("profilePicture", data.profilePicture);
+  if (data.name) fd.append("name", data.name);
+  if (data.city) fd.append("city", data.city);
+  return api.put("/users/me", fd, { headers: { "Content-Type": "multipart/form-data" } });
+};
+
+export const searchUsers = (q) => api.get('/users/search', { params: { q } });
+export const getTopCreators = () => api.get('/users/top-creators');

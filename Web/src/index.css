@@ -1,0 +1,8 @@
+/* Offset for fixed-top navbar across all pages */
+body { padding-top: 70px; }
+
+@media (max-width: 575.98px) {
+  body { padding-top: 60px; }
+}
+
+

@@ -1,6 +1,10 @@
 .jtp-sidebar {
   width: 260px;
   min-height: 100vh;
+  position: sticky;
+  top: 70px;
+  height: calc(100vh - 70px);
+  align-self: flex-start;
 }
 
 @media (max-width: 991.98px) {

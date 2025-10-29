@@ -21,6 +21,8 @@ router.post('/login', login);
 // static routes before param routes
 router.get('/getMe', verifyToken, getMe);
 router.put('/me', verifyToken, Upload.single('profilePicture'), updateMe);
+router.get('/search', verifyToken, (await import('../controller/userController.js')).searchUsers);
+router.get('/top-creators', verifyToken, (await import('../controller/userController.js')).getTopCreators);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/logout', logout);

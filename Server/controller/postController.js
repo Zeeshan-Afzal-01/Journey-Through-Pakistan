@@ -27,7 +27,18 @@ export const createPost = async (req, res) => {
 
 export const listPosts = async (req, res) => {
   try {
-    const posts = await Post.find()
+    const { author, q } = req.query;
+    const filter = {};
+    if (author) filter.author = author;
+    if (q) {
+      const regex = new RegExp(q, 'i');
+      filter.$or = [
+        { text: regex },
+        { place: regex },
+        { feeling: regex },
+      ];
+    }
+    const posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .populate("author", "name profilePicture city")
       .lean();

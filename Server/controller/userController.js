@@ -1,4 +1,5 @@
 import User from "../models/user.models.js";
+import Post from "../models/post.models.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import sendOTP from "../utils/sendOTP.js";
@@ -132,6 +133,40 @@ export const getAllUsers = async (req, res) => {
     res.status(200).json(allUsers);
   } catch (err) {
     res.status(500).json({ message: "Error while getting all users: ", err });
+  }
+};
+
+export const searchUsers = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || q.trim().length === 0) return res.json([]);
+    const regex = new RegExp(q, 'i');
+    const users = await User.find({ name: regex }).select("-password").limit(20);
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: "Error searching users", err });
+  }
+};
+
+export const getTopCreators = async (req, res) => {
+  try {
+    const top = await Post.aggregate([
+      { $addFields: { likesCount: { $size: { $ifNull: ["$likes", []] } } } },
+      { $group: { _id: "$author", totalLikes: { $sum: "$likesCount" }, posts: { $sum: 1 } } },
+      { $sort: { totalLikes: -1, posts: -1 } },
+      { $limit: 3 },
+    ]);
+    const ids = top.map(t => t._id);
+    const users = await User.find({ _id: { $in: ids } }).select("name profilePicture");
+    const idToUser = new Map(users.map(u => [String(u._id), u]));
+    const result = top.map(t => ({
+      user: idToUser.get(String(t._id)),
+      totalLikes: t.totalLikes,
+      posts: t.posts,
+    })).filter(x => x.user);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching top creators", err });
   }
 };
 

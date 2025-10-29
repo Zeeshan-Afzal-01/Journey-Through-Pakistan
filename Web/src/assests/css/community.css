@@ -4,3 +4,45 @@
 .object-fit-cover { object-fit: cover; }
 
 
+/* Stories bar */
+.stories-bar { overflow-x: auto; white-space: nowrap; }
+.story-item { width: 68px; display: inline-flex; flex-direction: column; align-items: center; margin-right: 10px; }
+.story-ring { width: 56px; height: 56px; border-radius: 50%; padding: 3px; background: linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888); }
+.story-ring img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; background: #fff; padding: 2px; }
+.story-name { font-size: 11px; margin-top: 4px; max-width: 64px; overflow: hidden; text-overflow: ellipsis; }
+.story-ring.add { position: relative; background: linear-gradient(135deg,#8a2be2,#00d4ff); }
+.story-plus { position: absolute; right: -2px; bottom: -2px; width: 18px; height: 18px; background: #0d6efd; color: #fff; border-radius: 50%; display:flex; align-items:center; justify-content:center; font-size: 14px; line-height: 1; border:2px solid #fff; }
+
+/* Floating action menu */
+.fab-container { position: fixed; left: 20px; bottom: 20px; z-index: 1050; }
+.fab { width: 56px; height: 56px; border-radius: 50%; box-shadow: 0 8px 24px rgba(0,0,0,0.15); display: flex; align-items: center; justify-content: center; background: #0d6efd; color: #fff; border: none; }
+.fab-menu { position: absolute; ; bottom: 70px; display: flex; flex-direction: column; gap: 10px; }
+.fab-item { display: flex; align-items: center; gap: 8px; }
+.fab-item button { width: 44px; height: 44px; border-radius: 50%; border: none; box-shadow: 0 6px 18px rgba(0,0,0,0.12); display:flex; align-items:center; justify-content:center; background:#fff; color:#333; }
+.fab-item .label { background:#fff; border-radius: 6px; padding: 6px 10px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); font-size: 12px; }
+.fade-up-enter { opacity: 0; transform: translateY(8px); }
+.fade-up-enter-active { opacity: 1; transform: translateY(0); transition: all .18s ease-out; }
+.fade-up-exit { opacity: 1; transform: translateY(0); }
+.fade-up-exit-active { opacity: 0; transform: translateY(8px); transition: all .15s ease-in; }
+
+/* Notification dropdown from FAB */
+.fab-dropdown { position: absolute; right: 72px; bottom: 0; width: 320px; max-height: 60vh; overflow-y: auto; background: #fff; border: 1px solid #eaeaea; border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.12); padding: 8px; }
+
+/* Chat dock */
+.chat-dock { position: fixed; right: 20px; bottom: 90px; width: 360px; max-height: 60vh; background:#fff; border: 1px solid #eaeaea; border-radius: 12px; box-shadow: 0 12px 28px rgba(0,0,0,.12); display: flex; flex-direction: column; z-index: 1050; }
+.chat-dock-header { padding: 10px 12px; border-bottom: 1px solid #eee; font-weight: 600; }
+.chat-dock-body { padding: 10px; overflow-y: auto; }
+.chat-item { display:flex; align-items:center; gap:10px; padding:6px; border-radius:8px; }
+.chat-item:hover { background:#f8f9fa; }
+
+/* Fixed sidebars in Community */
+.community-sticky { position: sticky; top: 70px; max-height: calc(100vh - 90px); overflow-y: auto; }
+
+/* Story viewer progress */
+.story-progress { width: 100%; }
+.story-progress-seg { flex: 1 1 auto; height: 3px; background: rgba(255,255,255,.25); border-radius: 2px; }
+.story-progress-seg.active { background: #ff3b30; }
+.user-progress { width: 100%; }
+.user-progress-seg { flex: 1 1 auto; height: 2px; background: rgba(255,255,255,.15); border-radius: 2px; }
+.user-progress-seg.active { background: #ff3b30; }
+

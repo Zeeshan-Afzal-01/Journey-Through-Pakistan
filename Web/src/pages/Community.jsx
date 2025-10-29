@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark } from "react-icons/fi";
+import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser } from "react-icons/fi";
 import "../assests/css/community.css";
-import { listPosts, createPost, toggleLike } from "../api/postsApi.jsx";
+import { listPosts, createPost, toggleLike, addComment } from "../api/postsApi.jsx";
+import { getTopCreators } from "../api/authApi.jsx";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { listStatuses as apiListStatuses, createStatus as apiCreateStatus, markStatusViewed as apiMarkViewed } from "../api/statusesApi.jsx";
 
-function CreatePostBar({ onPost, currentUser }) {
+function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal }) {
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -27,10 +30,10 @@ function CreatePostBar({ onPost, currentUser }) {
               <span className="text-muted">{`What's on your mind, ${currentUser?.name?.split(' ')[0] || ''}?`}</span>
             </div>
             <div className="d-flex gap-2">
-              <button className="btn btn-light rounded-circle p-2" style={{ width: "40px", height: "40px" }} title="Live Video">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="#f02849">
-                  <path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z" />
-                  <circle cx="12" cy="12" r="3" fill="white"/>
+              <button className="btn btn-light rounded-circle p-2" style={{ width: "40px", height: "40px" }} title="Add Status" onClick={() => onOpenStatusModal?.()}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="#8a2be2">
+                  <circle cx="12" cy="12" r="10" opacity="0.15"/>
+                  <path d="M12 7v10M7 12h10" stroke="#8a2be2" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
               </button>
               <button className="btn btn-light rounded-circle p-2" style={{ width: "40px", height: "40px" }} title="Photo/Video">
@@ -435,6 +438,232 @@ function CreatePostModal({ onPost, currentUser, onClose }) {
   );
 }
 
+function CreateStatusModal({ currentUser, onCreated, onClose }) {
+  const [file, setFile] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [caption, setCaption] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  useEffect(() => {
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    } else {
+      setPreviewUrl("");
+    }
+  }, [file]);
+
+  // Auto-open file chooser when modal opens and no file selected
+  useEffect(() => {
+    if (!file && fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  }, [file]);
+
+  const handleSubmit = async () => {
+    if (!file || submitting) return;
+    setSubmitting(true);
+    try {
+      const { data } = await apiCreateStatus({ file, caption: caption || undefined });
+      onCreated?.(data);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.6)" }}>
+      <div className="modal-dialog modal-dialog-centered">
+        <div className="modal-content" style={{ borderRadius: 16, overflow: 'hidden' }}>
+          <div className="modal-header" style={{ background: 'linear-gradient(135deg,#8a2be2,#00d4ff)', color: '#fff' }}>
+            <div className="d-flex align-items-center gap-2">
+              <img className="rounded-circle" style={{ width:36, height:36, objectFit:'cover', border:'2px solid rgba(255,255,255,.6)' }} src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : '/default-avatar.png'} alt={currentUser?.name||'me'} />
+              <div className="fw-semibold">{currentUser?.name || 'You'}</div>
+            </div>
+            <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
+          </div>
+          <div className="modal-body" style={{ background:'#0b0b0d' }}>
+            <input ref={fileInputRef} type="file" hidden accept="image/*" onChange={(e)=> setFile(e.target.files?.[0] || null)} />
+            {!previewUrl && (
+              <div className="text-center text-white-50 py-5" style={{ minHeight: '40vh' }}>
+                Select a photo to share as your status
+              </div>
+            )}
+            {previewUrl && (
+              <div className="mb-3 d-flex justify-content-center">
+                <img src={previewUrl} alt="preview" style={{ width:'100%', maxHeight:'50vh', objectFit:'contain', borderRadius:12, boxShadow:'0 10px 30px rgba(0,0,0,.5)' }} />
+              </div>
+            )}
+            {previewUrl && (
+              <input value={caption} onChange={(e)=>setCaption(e.target.value)} className="form-control" placeholder="Write a caption (optional)" />
+            )}
+          </div>
+          <div className="modal-footer" style={{ background:'#0b0b0d', borderTopColor:'#1f1f25' }}>
+            <button className="btn btn-outline-light" onClick={() => fileInputRef.current?.click()}>Choose Photo</button>
+            <button className="btn btn-primary" disabled={!file || submitting} onClick={handleSubmit}>{submitting ? 'Uploading…' : 'Post Status'}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StatusBar({ currentUser, groups, onClickGroup, onAddRequested }) {
+  const getRingStyle = (count) => {
+    if (!count || count <= 1) return {};
+    const colors = ['#ff5f6d', '#ffc371', '#36d1dc', '#5b86e5', '#f7971e', '#c471ed'];
+    const step = 100 / count;
+    let gradient = '';
+    for (let i = 0; i < count; i++) {
+      const start = i * step;
+      const end = (i + 1) * step;
+      const color = colors[i % colors.length];
+      gradient += `${color} ${start}%, ${color} ${end}%` + (i < count - 1 ? ', ' : '');
+    }
+    return {
+      background: `conic-gradient(${gradient})`
+    };
+  };
+  return (
+    <div className="card shadow-sm mb-3">
+      <div className="card-body py-2 stories-bar">
+        <div className="story-item" onClick={()=>onAddRequested?.()} style={{ cursor:'pointer' }}>
+          <div className="story-ring add">
+            <img src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : '/default-avatar.png'} alt={currentUser?.name||'You'} />
+            <span className="story-plus">+</span>
+          </div>
+          <div className="story-name">Add Status</div>
+        </div>
+        {groups.map((g, idx) => (
+          <div key={(g.user?._id||'u')+idx} className="story-item" onClick={()=>onClickGroup?.(idx)} style={{ cursor:'pointer' }}>
+            <div className="story-ring" style={getRingStyle(g.items?.length || 1)}>
+              <img src={g.user?.profilePicture ? `http://localhost:3000/${g.user.profilePicture}` : '/default-avatar.png'} alt={g.user?.name||'User'} />
+            </div>
+            <div className="story-name">{g.user?.name?.split(' ')[0] || 'User'}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, currentUser }) {
+  const [index, setIndex] = useState(0);
+  const [showViewers, setShowViewers] = useState(false);
+  const group = groups[groupIndex];
+  const items = group?.items || [];
+  const item = items[index];
+
+  useEffect(() => { setIndex(0); }, [groupIndex]);
+
+  // Mark as viewed when viewing someone else's status
+  useEffect(() => {
+    const run = async () => {
+      if (item && currentUser && group?.user?._id !== currentUser._id) {
+        try { await apiMarkViewed(item._id); } catch {}
+      }
+    };
+    run();
+  }, [item?._id]);
+
+  const goPrevItem = () => setIndex(i => Math.max(0, i - 1));
+  const goNextItem = () => setIndex(i => Math.min(items.length - 1, i + 1));
+  const goPrevGroup = () => onChangeGroup?.(Math.max(0, groupIndex - 1));
+  const goNextGroup = () => onChangeGroup?.(Math.min(groups.length - 1, groupIndex + 1));
+
+  const handlePointer = (e, isDown) => {
+    const el = e.currentTarget;
+    const rect = el.getBoundingClientRect();
+    const x = (e.touches?.[0]?.clientX ?? e.clientX) - rect.left;
+    const leftSide = x < rect.width / 2;
+    if (!isDown) return;
+    const start = Date.now();
+    const endHandler = (ev) => {
+      const dur = Date.now() - start;
+      const longPress = dur > 250; // threshold
+      const isLeft = leftSide;
+      if (longPress) {
+        if (isLeft) {
+          if (groupIndex > 0) onChangeGroup?.(groupIndex - 1);
+        } else {
+          if (groupIndex < groups.length - 1) onChangeGroup?.(groupIndex + 1);
+        }
+      } else {
+        if (isLeft) {
+          if (index > 0) setIndex(i=>i-1); else if (groupIndex>0) onChangeGroup?.(groupIndex-1);
+        } else {
+          if (index < items.length - 1) setIndex(i=>i+1); else if (groupIndex<groups.length-1) onChangeGroup?.(groupIndex+1);
+        }
+      }
+      window.removeEventListener('mouseup', endHandler);
+      window.removeEventListener('touchend', endHandler);
+    };
+    window.addEventListener('mouseup', endHandler);
+    window.addEventListener('touchend', endHandler, { once: true });
+  };
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.9)" }}>
+      <div className="modal-dialog modal-dialog-centered modal-lg">
+        <div className="modal-content bg-dark text-white" style={{ overflow:'hidden', borderRadius: 16 }}>
+          <div className="modal-header border-0">
+            <div className="d-flex align-items-center gap-2">
+              <img className="rounded-circle" style={{ width:32, height:32, objectFit:'cover' }} src={group?.user?.profilePicture ? `http://localhost:3000/${group.user.profilePicture}` : '/default-avatar.png'} />
+              <div className="small fw-semibold">{group?.user?.name || 'User'}</div>
+            </div>
+            <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
+          </div>
+          {/* Item progress segments */}
+          <div className="px-3 pt-2 w-100">
+            <div className="story-progress d-flex gap-1">
+              {items.map((_, i) => (
+                <div key={i} className={`story-progress-seg ${i<=index ? 'active' : ''}`}></div>
+              ))}
+            </div>
+            
+          </div>
+          <div className="modal-body p-0 position-relative" style={{ background:'#000' }} onMouseDown={(e)=>handlePointer(e,true)} onTouchStart={(e)=>handlePointer(e,true)}>
+            {item ? (
+              <img src={`http://localhost:3000/${item.mediaUrl}`} alt="status" style={{ width:'100%', height:'70vh', objectFit:'contain', background:'#000' }} />
+            ) : (
+              <div className="text-center text-muted py-5">No status</div>
+            )}
+            <button className="btn btn-sm btn-outline-light position-absolute" style={{ left:12, top:'50%' }} onClick={index>0?goPrevItem:goPrevGroup} disabled={groupIndex===0 && index===0}>‹</button>
+            <button className="btn btn-sm btn-outline-light position-absolute" style={{ right:12, top:'50%' }} onClick={index<items.length-1?goNextItem:goNextGroup} disabled={groupIndex===groups.length-1 && index===items.length-1}>›</button>
+          </div>
+          <div className="modal-footer flex-column align-items-stretch border-0 w-100" style={{ gap: '8px' }}>
+            <div className="d-flex justify-content-between align-items-center w-100">
+              <div className="text-muted small">{items.length ? `${index+1} / ${items.length}` : 'No items'}</div>
+              <div className="d-flex align-items-center gap-2">
+                {group?.user?._id === currentUser?._id && (
+                  <button className="btn btn-sm btn-outline-light" onClick={()=> setShowViewers(v=>!v)}>
+                    Viewers ({item?.views?.length || 0})
+                  </button>
+                )}
+              </div>
+            </div>
+            {group?.user?._id === currentUser?._id && showViewers && Array.isArray(item?.views) && (
+              <div className="bg-dark rounded p-2" style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #2a2a2a' }}>
+                {item.views.length === 0 && (
+                  <div className="text-muted xsmall">No viewers yet</div>
+                )}
+                {item.views.map(v => (
+                  <div key={v._id} className="d-flex align-items-center gap-2 py-1">
+                    <img className="rounded-circle" style={{ width:26, height:26, objectFit:'cover' }} src={v.profilePicture ? `http://localhost:3000/${v.profilePicture}` : '/default-avatar.png'} alt={v.name} />
+                    <div className="small">{v.name}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Composer({ onPost, currentUser }) {
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
@@ -531,10 +760,14 @@ function Composer({ onPost, currentUser }) {
   );
 }
 
-function PostCard({ post, onToggleLike }) {
+function PostCard({ post, onToggleLike, onAddComment }) {
   const likeCount = post.likes?.length || 0;
   const commentCount = post.comments?.length || 0;
   const time = new Date(post.createdAt).toLocaleString();
+  const [showComments, setShowComments] = useState(false);
+  const [commentText, setCommentText] = useState("");
+  const submitting = false;
+  const isGif = post.imageUrl && /\.gif($|\?)/i.test(post.imageUrl);
   return (
     <div className="card shadow-sm mb-3 post-card">
       <div className="card-body">
@@ -551,11 +784,19 @@ function PostCard({ post, onToggleLike }) {
         </div>
         <p className="mb-2">{post.text}</p>
         {post.imageUrl && (
-          <div className="ratio ratio-16x9 rounded overflow-hidden mb-2">
-            <Link to={`/community/post/${post._id}`}>
-              <img className="object-fit-cover" src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} alt="post" />
-            </Link>
-          </div>
+          isGif ? (
+            <div className="rounded overflow-hidden mb-2">
+              <Link to={`/community/post/${post._id}`}>
+                <img style={{ width: '100%', height: 'auto' }} src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} alt="post" />
+              </Link>
+            </div>
+          ) : (
+            <div className="ratio ratio-16x9 rounded overflow-hidden mb-2">
+              <Link to={`/community/post/${post._id}`}>
+                <img className="object-fit-cover" src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} alt="post" />
+              </Link>
+            </div>
+          )
         )}
         {(post.place || post.feeling) && (
           <div className="text-muted xsmall mb-2">
@@ -565,9 +806,28 @@ function PostCard({ post, onToggleLike }) {
         )}
         <div className="d-flex gap-3 text-muted small">
           <button type="button" onClick={()=>onToggleLike?.(post)} className="btn btn-link p-0 text-decoration-none text-muted d-inline-flex align-items-center gap-1"><FiHeart/> {likeCount}</button>
-          <span className="d-inline-flex align-items-center gap-1"><FiMessageSquare/> {commentCount}</span>
+          <button type="button" onClick={()=>setShowComments(v=>!v)} className="btn btn-link p-0 text-decoration-none text-muted d-inline-flex align-items-center gap-1"><FiMessageSquare/> {commentCount}</button>
           <span className="ms-auto d-inline-flex align-items-center gap-1"><FiBookmark/> Save</span>
         </div>
+        {showComments && (
+          <div className="mt-3">
+            <div className="d-flex flex-column gap-2">
+              {(post.comments || []).map((c) => (
+                <div key={c._id} className="d-flex align-items-start gap-2">
+                  <img className="rounded-circle" src={c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : '/default-avatar.png'} alt={c.author?.name || 'User'} style={{ width: 28, height: 28, objectFit: 'cover' }} />
+                  <div className="bg-light rounded px-2 py-1 flex-grow-1">
+                    <div className="small"><span className="fw-semibold">{c.author?.name || 'User'}</span> <span className="text-muted">{new Date(c.createdAt).toLocaleString?.() || ''}</span></div>
+                    <div className="small">{c.text}</div>
+                  </div>
+                </div>
+              ))}
+              <div className="d-flex align-items-center gap-2">
+                <input className="form-control form-control-sm" placeholder="Write a comment..." value={commentText} onChange={(e)=>setCommentText(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter'){ onAddComment?.(post, commentText, () => setCommentText('')); } }} />
+                <button disabled={!commentText.trim() || submitting} className="btn btn-primary btn-sm" onClick={()=> onAddComment?.(post, commentText, () => setCommentText(''))}>Comment</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -575,9 +835,28 @@ function PostCard({ post, onToggleLike }) {
 
 export default function Community() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
+  const [statuses, setStatuses] = useState([]);
+  const [showStatusModal, setShowStatusModal] = useState(false);
+  const groups = useMemo(() => {
+    const map = new Map();
+    statuses.forEach(s => {
+      const key = s.author?._id || 'unknown';
+      if (!map.has(key)) map.set(key, { user: s.author, items: [] });
+      map.get(key).items.push(s);
+    });
+    return Array.from(map.values());
+  }, [statuses]);
+  const [viewerGroupIndex, setViewerGroupIndex] = useState(-1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [topCreators, setTopCreators] = useState([]);
+  const [fabOpen, setFabOpen] = useState(false);
+  const [fabBellOpen, setFabBellOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
     let mounted = true;
@@ -594,6 +873,35 @@ export default function Community() {
     return () => { mounted = false; };
   }, []);
 
+  // Load statuses
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await apiListStatuses();
+        setStatuses(Array.isArray(res.data) ? res.data : []);
+      } catch {}
+    })();
+  }, []);
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await getTopCreators();
+        setTopCreators(data || []);
+      } catch {}
+    })();
+  }, []);
+
+  // Load notifications for FAB dropdown
+  useEffect(() => {
+    (async () => {
+      try {
+        const { listNotifications } = await import('../api/notificationsApi.jsx');
+        const res = await listNotifications();
+        setNotifications(Array.isArray(res.data) ? res.data : [])
+      } catch {}
+    })();
+  }, []);
+
   const handlePrependPost = (p) => {
     setPosts((old) => [p, ...old]);
   };
@@ -602,6 +910,14 @@ export default function Community() {
     try {
       const { data } = await toggleLike(post._id);
       setPosts((old) => old.map((x) => (x._id === data._id ? data : x)));
+    } catch {}
+  };
+
+  const handleAddComment = async (post, text, done) => {
+    try {
+      const { data } = await addComment(post._id, text.trim());
+      setPosts((old) => old.map((x) => (x._id === data._id ? data : x)));
+      if (done) done();
     } catch {}
   };
 
@@ -614,19 +930,12 @@ export default function Community() {
   const topics = ["Hunza", "Islamabad", "Street Food", "Hiking", "Culture", "Photography"];
 
   return (
+    <>
     <div className="container-fluid py-3 community-page">
       <div className="row g-3">
         {/* Left sidebar */}
         <div className="col-12 col-lg-3">
-          <div className="card shadow-sm mb-3">
-            <div className="card-body">
-              <div className="input-group">
-                <span className="input-group-text bg-white"><FiSearch/></span>
-                <input className="form-control" placeholder="Search posts, places, people" />
-              </div>
-            </div>
-          </div>
-
+          <div className="community-sticky">
           <div className="card shadow-sm mb-3">
             <div className="card-body">
               <div className="fw-bold mb-2 d-flex align-items-center gap-2"><FiTrendingUp/> Trending Topics</div>
@@ -642,12 +951,12 @@ export default function Community() {
             <div className="card-body">
               <div className="fw-bold mb-2 d-flex align-items-center gap-2"><FiUsers/> People to follow</div>
               <div className="d-flex flex-column gap-2">
-                {people.map(p => (
-                  <div key={p.handle} className="d-flex align-items-center gap-2">
-                    <img className="rounded-circle comm-avatar" src={p.avatar} alt={p.name} />
+                {topCreators.map(tc => (
+                  <div key={tc.user?._id} className="d-flex align-items-center gap-2">
+                    <img className="rounded-circle comm-avatar" src={tc.user?.profilePicture ? `http://localhost:3000/${tc.user.profilePicture}` : '/default-avatar.png'} alt={tc.user?.name || 'User'} />
                     <div className="flex-grow-1">
-                      <div className="small fw-semibold">{p.name}</div>
-                      <div className="xsmall text-muted">{p.handle}</div>
+                      <div className="small fw-semibold">{tc.user?.name}</div>
+                      <div className="xsmall text-muted">{tc.totalLikes} likes • {tc.posts} posts</div>
                     </div>
                     <button className="btn btn-sm btn-outline-primary">Follow</button>
                   </div>
@@ -655,23 +964,26 @@ export default function Community() {
               </div>
             </div>
           </div>
+          </div>
         </div>
 
         {/* Feed */}
         <div className="col-12 col-lg-6">
-          <CreatePostBar onPost={handlePrependPost} currentUser={user} />
+          <StatusBar currentUser={user} groups={groups} onClickGroup={(idx)=> setViewerGroupIndex(idx)} onAddRequested={()=> setShowStatusModal(true)} />
+          <CreatePostBar onPost={handlePrependPost} currentUser={user} onStatusCreated={(s)=> setStatuses(old=>[s, ...old])} onOpenStatusModal={()=> setShowStatusModal(true)} />
           {loading && <div className="text-center text-muted small py-4">Loading feed...</div>}
           {error && <div className="alert alert-danger">{error}</div>}
           {!loading && posts.length === 0 && (
             <div className="text-center text-muted small py-4">No posts yet. Be the first to share!</div>
           )}
           {posts.map((p) => (
-            <PostCard key={p._id} post={p} onToggleLike={handleToggleLike} />
+            <PostCard key={p._id} post={p} onToggleLike={handleToggleLike} onAddComment={handleAddComment} />
           ))}
         </div>
 
         {/* Right sidebar */}
         <div className="col-12 col-lg-3">
+          <div className="community-sticky">
           <div className="card shadow-sm mb-3">
             <div className="card-body">
               <div className="fw-bold mb-2">Discover Groups</div>
@@ -690,9 +1002,71 @@ export default function Community() {
               © {new Date().getFullYear()} Journey Through Pakistan
             </div>
           </div>
+          </div>
         </div>
       </div>
     </div>
+    {showStatusModal && (
+      <CreateStatusModal currentUser={user} onCreated={(s)=> { setStatuses(old=>[s, ...old]); setShowStatusModal(false); }} onClose={()=> setShowStatusModal(false)} />
+    )}
+    {viewerGroupIndex >= 0 && groups.length > 0 && (
+      <StatusViewerModal groups={groups} groupIndex={viewerGroupIndex} onChangeGroup={(idx)=> setViewerGroupIndex(idx)} onClose={()=> setViewerGroupIndex(-1)} currentUser={user} />
+    )}
+      {/* Floating FAB menu */}
+      <div className="fab-container">
+        {fabBellOpen && (
+          <div className="fab-dropdown">
+            <div className="fw-semibold small p-1 border-bottom">Notifications</div>
+            <div className="d-flex flex-column gap-2 p-1">
+              {notifications.slice(0,6).map(n => (
+                <div key={n._id} className="d-flex align-items-start gap-2">
+                  <img className="rounded-circle" style={{ width: 28, height: 28, objectFit:'cover' }} src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
+                  <div className="small"><span className="fw-semibold">{n.actor?.name}</span> {n.message}</div>
+                </div>
+              ))}
+              {notifications.length === 0 && <div className="text-muted small">No notifications</div>}
+            </div>
+          </div>
+        )}
+        {chatOpen && (
+          <div className="chat-dock">
+            <div className="chat-dock-header d-flex align-items-center justify-content-between">
+              <span>Messages</span>
+              <button className="btn btn-sm btn-light" onClick={()=>setChatOpen(false)}>Close</button>
+            </div>
+            <div className="chat-dock-body">
+              {["Ali Raza","Hira Fatima","Bilal Ahmed","Nimra"].map((n,i)=>(
+                <div key={i} className="chat-item">
+                  <img className="rounded-circle" style={{ width:32,height:32,objectFit:'cover' }} src={`https://i.pravatar.cc/64?img=${i+10}`} />
+                  <div className="flex-grow-1">
+                    <div className="small fw-semibold">{n}</div>
+                    <div className="xsmall text-muted">Tap to open chat</div>
+                  </div>
+                  <button className="btn btn-sm btn-outline-secondary" onClick={()=>navigate('/chats')}>Open</button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="fab-menu" style={{ display: fabOpen ? 'flex' : 'none' }}>
+         
+          <div className="fab-item fade-up-enter-active">
+            <div className="label">Search</div>
+            <button onClick={()=>navigate('/search')}><FiSearch/></button>
+          </div>
+          <div className="fab-item fade-up-enter-active">
+            <div className="label">Create</div>
+            <button onClick={()=>document.querySelector('.card .card-body .flex-grow-1.bg-light')?.click()}><FiPlus/></button>
+          </div>
+       
+         
+          
+        </div>
+        <button className="fab" onClick={()=>setFabOpen(v=>!v)}>
+          {fabOpen ? '×' : '☰'}
+        </button>
+      </div>
+    </>
   );
 }
 

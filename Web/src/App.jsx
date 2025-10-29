@@ -15,6 +15,7 @@ import Community from "./pages/Community";
 import PostDetail from "./pages/PostDetail";
 import Chats from "./pages/Chats";
 import Notifications from "./pages/Notifications";
+import Search from "./pages/Search";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -147,6 +148,19 @@ function App() {
                   <Sidebar />
                   <main className="jtp-content p-3">
                     <Notifications />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <div className="jtp-layout">
+                  <Sidebar />
+                  <main className="jtp-content p-3">
+                    <Search />
                   </main>
                 </div>
               </ProtectedRoute>
