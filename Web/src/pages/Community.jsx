@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser, FiMoreHorizontal, FiEdit2, FiTrash2, FiLock, FiGlobe, FiTag } from "react-icons/fi";
+import { MdPhotoLibrary, MdLocationOn, MdEmojiEmotions, MdPhoto, MdClose, MdMyLocation, MdPersonAdd } from "react-icons/md";
 import "../assests/css/community.css";
 import "../assests/css/stories.css";
 import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost, toggleSavePost } from "../api/postsApi.jsx";
-import { getTopCreators } from "../api/authApi.jsx";
+import { getTopCreators, getFriends } from "../api/authApi.jsx";
 import { sendFriendRequest as apiSendFriendRequest } from "../api/authApi.jsx";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -111,13 +112,10 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
     "Murree, Pakistan"
   ];
 
-  // Sample users (in real app, fetch from database)
-  const sampleUsers = [
-    { id: 1, name: "Ayesha Khan", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop" },
-    { id: 2, name: "Usman Ali", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop" },
-    { id: 3, name: "Zara Tariq", avatar: "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200&auto=format&fit=crop" },
-    { id: 4, name: "Bilal Ahmed", avatar: "https://images.unsplash.com/photo-1511367461989-f85a21fda167?q=80&w=200&auto=format&fit=crop" }
-  ];
+  // Friends state for tagging
+  const [friends, setFriends] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const friendsFetchedRef = React.useRef(false);
 
   useEffect(() => {
     if (file) {
@@ -129,14 +127,49 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
     }
   }, [file]);
 
+  // Fetch friends when tag modal opens
+  useEffect(() => {
+    if (showTagModal && !friendsFetchedRef.current && !friendsLoading) {
+      const fetchFriends = async () => {
+        setFriendsLoading(true);
+        try {
+          const { data } = await getFriends();
+          setFriends(Array.isArray(data) ? data : []);
+          friendsFetchedRef.current = true;
+        } catch (err) {
+          console.error('Failed to fetch friends:', err);
+        } finally {
+          setFriendsLoading(false);
+        }
+      };
+      fetchFriends();
+    }
+    // Reset when modal closes
+    if (!showTagModal) {
+      friendsFetchedRef.current = false;
+      setFriends([]);
+      setTagSearch("");
+    }
+  }, [showTagModal]);
+
+  // Filter friends based on search query
+  const filteredFriends = useMemo(() => {
+    if (!tagSearch.trim()) return friends;
+    const query = tagSearch.toLowerCase();
+    return friends.filter(friend => 
+      friend.name?.toLowerCase().includes(query)
+    );
+  }, [friends, tagSearch]);
+
   const handleSubmit = async () => {
     if (!canPost) return;
     setSubmitting(true);
     try {
       const finalImageUrl = selectedGif || imageUrl;
+      const taggedUserIds = taggedUsers.map(u => u._id || u.id || u);
       const payload = file
-        ? { text, file, place: place || undefined, feeling: feeling || undefined, privacy, group: postToGroup || undefined }
-        : { text, imageUrl: finalImageUrl || undefined, place: place || undefined, feeling: feeling || undefined, privacy, group: postToGroup || undefined };
+        ? { text, file, place: place || undefined, feeling: feeling || undefined, privacy, group: postToGroup || undefined, taggedUsers: taggedUserIds.length > 0 ? taggedUserIds : undefined }
+        : { text, imageUrl: finalImageUrl || undefined, place: place || undefined, feeling: feeling || undefined, privacy, group: postToGroup || undefined, taggedUsers: taggedUserIds.length > 0 ? taggedUserIds : undefined };
       const { data } = await createPost(payload);
       onPost?.(data);
       onClose();
@@ -145,11 +178,15 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
     }
   };
 
-  const handleTagUser = (user) => {
-    if (!taggedUsers.find(u => u.id === user.id)) {
-      setTaggedUsers([...taggedUsers, user]);
-      setText(text + ` @${user.name}`);
+  const handleTagUser = (friend) => {
+    const friendId = friend._id || friend.id || friend;
+    if (!taggedUsers.find(u => {
+      const uid = u._id || u.id || u;
+      return uid.toString() === friendId.toString();
+    })) {
+      setTaggedUsers([...taggedUsers, friend]);
     }
+    setTagSearch("");
     setShowTagModal(false);
   };
 
@@ -242,6 +279,45 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                   <img src={file ? previewUrl : (selectedGif || imageUrl)} alt="preview" className="img-fluid rounded" />
                   <button type="button" className="btn btn-sm btn-danger position-absolute" style={{ top: 6, right: 6 }} onClick={() => { setFile(null); setImageUrl(""); setSelectedGif(""); }}>Remove</button>
                 </div>
+              </div>
+            )}
+
+            {/* Tagged Users Display */}
+            {taggedUsers.length > 0 && (
+              <div className="mb-3 d-flex flex-wrap gap-2 align-items-center">
+                <span className="small text-muted">Tagged:</span>
+                {taggedUsers.map((user) => {
+                  const userId = user._id || user.id || user;
+                  const userName = user.name || 'Friend';
+                  const userPic = user.profilePicture || user.avatar;
+                  return (
+                    <div 
+                      key={userId.toString()} 
+                      className="d-inline-flex align-items-center gap-1 bg-light rounded-pill px-2 py-1"
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      <img 
+                        src={userPic ? (userPic.startsWith('http') ? userPic : `http://localhost:3000/${userPic}`) : "/default-avatar.png"} 
+                        alt={userName}
+                        className="rounded-circle"
+                        style={{ width: '20px', height: '20px', objectFit: 'cover' }}
+                      />
+                      <span>{userName}</span>
+                      <button
+                        type="button"
+                        className="btn-close btn-close-sm"
+                        onClick={() => {
+                          setTaggedUsers(taggedUsers.filter(u => {
+                            const uid = u._id || u.id || u;
+                            return uid.toString() !== userId.toString();
+                          }));
+                        }}
+                        style={{ fontSize: '0.6rem' }}
+                        aria-label="Remove tag"
+                      ></button>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -425,28 +501,44 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                     onChange={(e) => setTagSearch(e.target.value)}
                   />
                 </div>
-                <div className="list-group">
-                  {sampleUsers
-                    .filter(user => user.name.toLowerCase().includes(tagSearch.toLowerCase()))
-                    .map((user) => (
-                      <button 
-                        key={user.id}
-                        type="button" 
-                        className="list-group-item list-group-item-action d-flex align-items-center"
-                        onClick={() => handleTagUser(user)}
-                      >
-                        <img 
-                          src={user.avatar} 
-                          alt={user.name}
-                          className="rounded-circle me-3"
-                          style={{ width: "40px", height: "40px" }}
-                        />
-                        <div>
-                          <div className="fw-semibold">{user.name}</div>
-                        </div>
-                      </button>
-                    ))}
-                </div>
+                {friendsLoading ? (
+                  <div className="text-center text-muted py-3">Loading friends...</div>
+                ) : filteredFriends.length === 0 ? (
+                  <div className="text-center text-muted py-3">
+                    {tagSearch ? 'No friends found' : 'No friends to tag'}
+                  </div>
+                ) : (
+                  <div className="list-group" style={{ maxHeight: "400px", overflowY: "auto" }}>
+                    {filteredFriends.map((friend) => {
+                      const friendId = friend._id || friend.id || friend;
+                      const isTagged = taggedUsers.some(u => {
+                        const uid = u._id || u.id || u;
+                        return uid.toString() === friendId.toString();
+                      });
+                      return (
+                        <button 
+                          key={friendId.toString()}
+                          type="button" 
+                          className={`list-group-item list-group-item-action d-flex align-items-center ${isTagged ? 'bg-light' : ''}`}
+                          onClick={() => !isTagged && handleTagUser(friend)}
+                          disabled={isTagged}
+                        >
+                          <img 
+                            src={friend.profilePicture ? `http://localhost:3000/${friend.profilePicture}` : "/default-avatar.png"} 
+                            alt={friend.name}
+                            className="rounded-circle me-3"
+                            style={{ width: "40px", height: "40px", objectFit: "cover" }}
+                          />
+                          <div className="flex-grow-1">
+                            <div className="fw-semibold">{friend.name}</div>
+                            {friend.city && <div className="small text-muted">{friend.city}</div>}
+                          </div>
+                          {isTagged && <span className="text-primary small">✓ Tagged</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -1217,9 +1309,16 @@ function Composer({ onPost, currentUser }) {
   const [feeling, setFeeling] = useState("");
   const [showEmoji, setShowEmoji] = useState(false);
   const [showPlace, setShowPlace] = useState(false);
+  const [showTagFriends, setShowTagFriends] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
   const [privacy, setPrivacy] = useState("Public");
+  const [fetchingLocation, setFetchingLocation] = useState(false);
+  const [locationError, setLocationError] = useState("");
+  const [taggedUsers, setTaggedUsers] = useState([]);
+  const [friends, setFriends] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [friendSearchQuery, setFriendSearchQuery] = useState("");
 
   const MAX_LEN = 500;
 
@@ -1235,13 +1334,53 @@ function Composer({ onPost, currentUser }) {
     }
   }, [file]);
 
+  // Fetch friends when tag friends button is clicked
+  useEffect(() => {
+    if (showTagFriends && friends.length === 0 && !friendsLoading) {
+      const fetchFriends = async () => {
+        setFriendsLoading(true);
+        try {
+          const { data } = await getFriends();
+          setFriends(Array.isArray(data) ? data : []);
+        } catch (err) {
+          console.error('Failed to fetch friends:', err);
+        } finally {
+          setFriendsLoading(false);
+        }
+      };
+      fetchFriends();
+    }
+  }, [showTagFriends, friends.length, friendsLoading]);
+
+  // Filter friends based on search query
+  const filteredFriends = useMemo(() => {
+    if (!friendSearchQuery.trim()) return friends;
+    const query = friendSearchQuery.toLowerCase();
+    return friends.filter(friend => 
+      friend.name?.toLowerCase().includes(query)
+    );
+  }, [friends, friendSearchQuery]);
+
+  const handleTagFriend = (friend) => {
+    const friendId = friend._id || friend;
+    if (!taggedUsers.some(u => (u._id || u).toString() === friendId.toString())) {
+      setTaggedUsers([...taggedUsers, friend]);
+    }
+    setFriendSearchQuery("");
+  };
+
+  const handleUntagFriend = (friendId) => {
+    setTaggedUsers(taggedUsers.filter(u => (u._id || u).toString() !== friendId.toString()));
+  };
+
   const handleSubmit = async () => {
     if (!canPost) return;
     setSubmitting(true);
     try {
+      const taggedUserIds = taggedUsers.map(u => u._id || u);
       const payload = file
-        ? { text, file, place: place || undefined, feeling: feeling || undefined, privacy }
-        : { text, imageUrl: imageUrl || undefined, place: place || undefined, feeling: feeling || undefined, privacy };
+        ? { text, file, place: place || undefined, feeling: feeling || undefined, privacy, taggedUsers: taggedUserIds.length > 0 ? taggedUserIds : undefined }
+        : { text, imageUrl: imageUrl || undefined, place: place || undefined, feeling: feeling || undefined, privacy, taggedUsers: taggedUserIds.length > 0 ? taggedUserIds : undefined };
       const { data } = await createPost(payload);
       onPost?.(data);
       setText("");
@@ -1250,6 +1389,9 @@ function Composer({ onPost, currentUser }) {
       setPlace("");
       setFeeling("");
       setShowEmoji(false);
+      setTaggedUsers([]);
+      setShowTagFriends(false);
+      setFriendSearchQuery("");
     } finally {
       setSubmitting(false);
     }
@@ -1266,37 +1408,304 @@ function Composer({ onPost, currentUser }) {
             }} rows={3} className="form-control mb-1" placeholder={`What's on your mind, ${currentUser?.name?.split(' ')[0] || ''}?`} />
             <div className="d-flex justify-content-end text-muted xsmall mb-2">{text.length}/{MAX_LEN}</div>
             <div className="d-flex gap-2 align-items-center flex-wrap">
-              <label className="btn btn-light border mb-0">
-                <FiImage className="me-2"/>Photo
+              <label className="btn btn-light border mb-0 d-flex align-items-center" style={{ borderRadius: '20px' }}>
+                <MdPhotoLibrary className="me-2" size={20} style={{ color: '#45bd62' }} />
+                <span>Photo</span>
                 <input type="file" accept="image/*" hidden onChange={(e)=> setFile(e.target.files?.[0] || null)} />
               </label>
-              <button type="button" className="btn btn-light border" onClick={()=>{
-                const url = prompt("Paste image URL (optional)") || "";
-                setImageUrl(url);
-              }}>Use URL</button>
-              <button type="button" className="btn btn-light border" onClick={()=> setShowPlace(v=>!v)}><FiMapPin className="me-2"/>Place</button>
+              <button 
+                type="button" 
+                className="btn btn-light border d-flex align-items-center" 
+                style={{ borderRadius: '20px' }}
+                onClick={()=>{
+                  const url = prompt("Paste image URL (optional)") || "";
+                  setImageUrl(url);
+                }}
+              >
+                <MdPhoto className="me-2" size={20} style={{ color: '#1877f2' }} />
+                <span>URL</span>
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-light border d-flex align-items-center" 
+                style={{ borderRadius: '20px' }}
+                onClick={async () => {
+                  if (showPlace) {
+                    setShowPlace(false);
+                    setPlace("");
+                    setLocationError("");
+                  } else {
+                    setShowPlace(true);
+                    setLocationError("");
+                    // Try to fetch current location
+                    if (navigator.geolocation) {
+                      setFetchingLocation(true);
+                      navigator.geolocation.getCurrentPosition(
+                        async (position) => {
+                          try {
+                            const { latitude, longitude } = position.coords;
+                            // Use reverse geocoding to get address
+                            const response = await fetch(
+                              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
+                            );
+                            const data = await response.json();
+                            if (data && data.locality) {
+                              const locationString = `${data.locality}${data.city ? ', ' + data.city : ''}${data.countryName ? ', ' + data.countryName : ''}`;
+                              setPlace(locationString);
+                            } else {
+                              setPlace(`${latitude.toFixed(4)}, ${longitude.toFixed(4)}`);
+                            }
+                            setLocationError("");
+                          } catch (err) {
+                            console.error('Geocoding error:', err);
+                            setLocationError("Could not fetch location name");
+                          } finally {
+                            setFetchingLocation(false);
+                          }
+                        },
+                        (error) => {
+                          setFetchingLocation(false);
+                          if (error.code === error.PERMISSION_DENIED) {
+                            setLocationError("Location access denied. Please enable location permissions.");
+                          } else if (error.code === error.POSITION_UNAVAILABLE) {
+                            setLocationError("Location unavailable.");
+                          } else {
+                            setLocationError("Failed to get location.");
+                          }
+                        },
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                      );
+                    } else {
+                      setLocationError("Geolocation is not supported by your browser.");
+                    }
+                  }
+                }}
+              >
+                <MdLocationOn className="me-2" size={20} style={{ color: '#e41e3f' }} />
+                <span>Location</span>
+                {fetchingLocation && <span className="ms-2 spinner-border spinner-border-sm" role="status" style={{ width: '0.8rem', height: '0.8rem' }}></span>}
+              </button>
               {showPlace && (
-                <input value={place} onChange={(e)=>setPlace(e.target.value)} className="form-control" style={{maxWidth:240}} placeholder="Mention a place" />
+                <div className="w-100 mt-2">
+                  <div className="input-group" style={{ borderRadius: '8px', overflow: 'hidden' }}>
+                    <span className="input-group-text bg-light border-end-0">
+                      <MdLocationOn size={18} style={{ color: '#e41e3f' }} />
+                    </span>
+                    <input 
+                      value={place} 
+                      onChange={(e)=>setPlace(e.target.value)} 
+                      className="form-control border-start-0" 
+                      placeholder={fetchingLocation ? "Fetching your location..." : "Add location or use current location"} 
+                      disabled={fetchingLocation}
+                    />
+                    {place && !fetchingLocation && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary border-start-0"
+                        onClick={() => {
+                          setPlace("");
+                          setLocationError("");
+                        }}
+                        title="Clear location"
+                      >
+                        <MdClose size={18} />
+                      </button>
+                    )}
+                  </div>
+                  {locationError && (
+                    <div className="text-danger small mt-1 d-flex align-items-center gap-1">
+                      <MdClose size={14} />
+                      {locationError}
+                    </div>
+                  )}
+                  {place && !fetchingLocation && !locationError && (
+                    <div className="text-success small mt-1 d-flex align-items-center gap-1">
+                      <MdMyLocation size={14} />
+                      Location added successfully
+                    </div>
+                  )}
+                </div>
               )}
-              <button type="button" className="btn btn-light border" onClick={()=> setShowEmoji(v=>!v)}><FiSmile className="me-2"/>Feeling</button>
+              <button 
+                type="button" 
+                className="btn btn-light border d-flex align-items-center" 
+                style={{ borderRadius: '20px' }}
+                onClick={()=> setShowEmoji(v=>!v)}
+              >
+                <MdEmojiEmotions className="me-2" size={20} style={{ color: '#f7b928' }} />
+                <span>Feeling</span>
+              </button>
+              <button 
+                type="button" 
+                className="btn btn-light border d-flex align-items-center" 
+                style={{ borderRadius: '20px' }}
+                onClick={()=> setShowTagFriends(v=>!v)}
+              >
+                <MdPersonAdd className="me-2" size={20} style={{ color: '#1877f2' }} />
+                <span>Tag Friends</span>
+              </button>
               <div className="ms-auto">
                 <button disabled={!canPost} onClick={handleSubmit} className="btn btn-primary">{submitting ? "Posting..." : "Post"}</button>
               </div>
             </div>
+            {/* Tagged Users Display */}
+            {taggedUsers.length > 0 && (
+              <div className="mt-2 d-flex flex-wrap gap-2 align-items-center">
+                <span className="small text-muted">Tagged:</span>
+                {taggedUsers.map((user) => {
+                  const userId = user._id || user;
+                  const userName = user.name || 'Friend';
+                  const userPic = user.profilePicture;
+                  return (
+                    <div 
+                      key={userId.toString()} 
+                      className="d-inline-flex align-items-center gap-1 bg-light rounded-pill px-2 py-1"
+                      style={{ fontSize: '0.85rem' }}
+                    >
+                      <img 
+                        src={userPic ? `http://localhost:3000/${userPic}` : "/default-avatar.png"} 
+                        alt={userName}
+                        className="rounded-circle"
+                        style={{ width: '20px', height: '20px', objectFit: 'cover' }}
+                      />
+                      <span>{userName}</span>
+                      <button
+                        type="button"
+                        className="btn-close btn-close-sm"
+                        onClick={() => handleUntagFriend(userId)}
+                        style={{ fontSize: '0.6rem' }}
+                        aria-label="Remove tag"
+                      ></button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {/* Tag Friends UI */}
+            {showTagFriends && (
+              <div className="mt-2 p-3 bg-light rounded" style={{ borderRadius: '8px' }}>
+                <div className="mb-2">
+                  <input
+                    type="text"
+                    className="form-control form-control-sm"
+                    placeholder="Search friends to tag..."
+                    value={friendSearchQuery}
+                    onChange={(e) => setFriendSearchQuery(e.target.value)}
+                  />
+                </div>
+                {friendsLoading ? (
+                  <div className="text-center text-muted small py-2">Loading friends...</div>
+                ) : filteredFriends.length === 0 ? (
+                  <div className="text-center text-muted small py-2">
+                    {friendSearchQuery ? 'No friends found' : 'No friends to tag'}
+                  </div>
+                ) : (
+                  <div className="d-flex flex-column gap-2" style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                    {filteredFriends.map((friend) => {
+                      const friendId = friend._id || friend;
+                      const isTagged = taggedUsers.some(u => (u._id || u).toString() === friendId.toString());
+                      return (
+                        <button
+                          key={friendId.toString()}
+                          type="button"
+                          className={`btn btn-sm d-flex align-items-center gap-2 ${isTagged ? 'btn-secondary' : 'btn-light border'}`}
+                          onClick={() => isTagged ? handleUntagFriend(friendId) : handleTagFriend(friend)}
+                          disabled={isTagged}
+                        >
+                          <img 
+                            src={friend.profilePicture ? `http://localhost:3000/${friend.profilePicture}` : "/default-avatar.png"} 
+                            alt={friend.name}
+                            className="rounded-circle"
+                            style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                          />
+                          <span className="flex-grow-1 text-start">{friend.name}</span>
+                          {isTagged && <span className="small">✓ Tagged</span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             {(file || imageUrl) && (
               <div className="mt-2">
-                <div className="position-relative d-inline-block rounded overflow-hidden" style={{maxWidth: '100%'}}>
-                  <img src={file ? previewUrl : imageUrl} alt="preview" className="img-fluid rounded" />
-                  <button type="button" className="btn btn-sm btn-danger position-absolute" style={{top:6,right:6}} onClick={()=>{ setFile(null); setImageUrl(""); }}>Remove</button>
+                <div className="position-relative d-inline-block rounded overflow-hidden" style={{maxWidth: '100%', borderRadius: '8px'}}>
+                  <img 
+                    src={file ? previewUrl : imageUrl} 
+                    alt="preview" 
+                    className="img-fluid rounded" 
+                    style={{ maxHeight: '400px', objectFit: 'contain', backgroundColor: '#f0f0f0' }}
+                  />
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-danger position-absolute rounded-circle d-flex align-items-center justify-content-center" 
+                    style={{
+                      top: 8, 
+                      right: 8, 
+                      width: '32px', 
+                      height: '32px',
+                      padding: 0,
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+                    }} 
+                    onClick={()=>{ 
+                      setFile(null); 
+                      setImageUrl(""); 
+                    }}
+                    title="Remove image"
+                  >
+                    <MdClose size={18} />
+                  </button>
+                </div>
               </div>
-            </div>
             )}
             {showEmoji && (
-              <div className="mt-2 d-flex gap-2 flex-wrap">
-                {['😀','😁','😂','🥰','😍','😎','🤩','😇','🥳','😴','😢','🤔','🙏','💪','🌟','🔥','🎉','🍽️','🏔️','📸'].map(em => (
-                  <button key={em} type="button" className="btn btn-sm btn-light border" onClick={()=> setFeeling(em)}>{em}</button>
-                ))}
-                {feeling && <span className="small text-muted">Selected: {feeling}</span>}
+              <div className="mt-2 p-3 bg-light rounded" style={{ borderRadius: '8px' }}>
+                <div className="d-flex gap-2 flex-wrap align-items-center">
+                  {['😀','😁','😂','🥰','😍','😎','🤩','😇','🥳','😴','😢','🤔','🙏','💪','🌟','🔥','🎉','🍽️','🏔️','📸'].map(em => (
+                    <button 
+                      key={em} 
+                      type="button" 
+                      className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center" 
+                      onClick={()=> {
+                        setFeeling(em);
+                        setShowEmoji(false);
+                      }}
+                      style={{ 
+                        width: '40px', 
+                        height: '40px', 
+                        fontSize: '20px',
+                        transition: 'all 0.2s',
+                        border: feeling === em ? '2px solid #1877f2' : '1px solid #ddd'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (feeling !== em) {
+                          e.currentTarget.style.transform = 'scale(1.1)';
+                          e.currentTarget.style.backgroundColor = '#f0f2f5';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (feeling !== em) {
+                          e.currentTarget.style.transform = 'scale(1)';
+                          e.currentTarget.style.backgroundColor = '';
+                        }
+                      }}
+                    >
+                      {em}
+                    </button>
+                  ))}
+                  {feeling && (
+                    <div className="ms-3 d-flex align-items-center gap-2 p-2 bg-white rounded border">
+                      <span style={{ fontSize: '20px' }}>{feeling}</span>
+                      <span className="small text-muted">Feeling</span>
+                      <button
+                        type="button"
+                        className="btn-close btn-close-sm"
+                        onClick={() => setFeeling("")}
+                        aria-label="Remove feeling"
+                      ></button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
             <div className="mb-2">
@@ -2031,6 +2440,47 @@ export default function Community() {
   const handlePrependPost = (p) => {
     setPosts((old) => [p, ...old]);
   };
+
+  const handleOpenStatusFromNotification = (statusId) => {
+    // Find which group contains this status
+    const statusIdStr = statusId?.toString();
+    for (let gIdx = 0; gIdx < statusGroups.length; gIdx++) {
+      const g = statusGroups[gIdx];
+      const statusIdx = g.items?.findIndex(s => {
+        const sid = s._id || s;
+        return String(sid) === statusIdStr;
+      });
+      if (statusIdx >= 0) {
+        // Found the status, open it
+        setViewerGroupIndex(gIdx);
+        setInitialStatusId(statusIdStr);
+        return;
+      }
+    }
+  };
+
+  // Listen for status open events from toast notifications
+  useEffect(() => {
+    const handleStatusOpen = (event) => {
+      const { statusId } = event.detail;
+      if (statusId) {
+        handleOpenStatusFromNotification(statusId);
+      }
+    };
+    
+    window.addEventListener('openStatusFromNotification', handleStatusOpen);
+    
+    // Also check sessionStorage on mount
+    const storedStatusId = sessionStorage.getItem('openStatusId');
+    if (storedStatusId) {
+      sessionStorage.removeItem('openStatusId');
+      handleOpenStatusFromNotification(storedStatusId);
+    }
+    
+    return () => {
+      window.removeEventListener('openStatusFromNotification', handleStatusOpen);
+    };
+  }, [statusGroups]);
 
   const handleToggleLike = async (post) => {
     try {

@@ -5,19 +5,19 @@ import "../assests/css/sidebar.css";
 
 export default function Sidebar() {
   return (
-    <aside className="jtp-sidebar d-flex flex-column flex-shrink-0 bg-light border-end p-2">
-      <div className="jtp-sidebar-header d-flex align-items-center justify-content-between pt-4 px-3  border-bottom">
-        
+    <aside className="jtp-sidebar d-flex flex-column flex-shrink-0 bg-light border-end">
+      <div className="jtp-sidebar-header d-flex align-items-center justify-content-between border-bottom d-lg-none">
         <button
-          className="btn btn-outline-secondary d-lg-none"
+          className="btn btn-link text-dark p-2"
           type="button"
           data-bs-toggle="collapse"
           data-bs-target="#jtpSidebarCollapse"
           aria-controls="jtpSidebarCollapse"
           aria-expanded="false"
           aria-label="Toggle sidebar"
+          style={{ fontSize: '1.5rem', border: 'none', textDecoration: 'none', width: '100%', textAlign: 'left' }}
         >
-          ☰
+          ☰ Menu
         </button>
       </div>
       <div id="jtpSidebarCollapse" className="collapse d-lg-block">

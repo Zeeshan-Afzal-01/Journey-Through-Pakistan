@@ -438,3 +438,15 @@ export const unfriend = async (req, res) => {
     res.status(500).json({ message: 'Unfriend error', err });
   }
 };
+
+// Get friends list with populated data
+export const getFriends = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const user = await User.findById(userId).populate("friends", "name profilePicture city");
+    if (!user) return res.status(404).json({ message: "User not found" });
+    res.json(user.friends || []);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch friends", error: err.message });
+  }
+};

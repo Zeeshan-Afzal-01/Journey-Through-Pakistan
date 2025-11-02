@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { FiBell } from 'react-icons/fi'
 import logoImg from '../images/download.jpeg'
 import { listNotifications } from '../api/notificationsApi.jsx'
+import { toast } from 'react-toastify'
 
 export default function navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -14,6 +15,10 @@ export default function navbar() {
   const navigate = useNavigate()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
+  const notificationSoundRef = useRef(null)
+  const lastNotificationCountRef = useRef(0)
+  const lastNotificationsRef = useRef([])
+  const pollingIntervalRef = useRef(null)
 
   let showProfileImage = Boolean(isAuthenticated)
   useEffect(() => {
@@ -25,28 +30,183 @@ export default function navbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  // Create notification sound using Web Audio API (pleasant two-tone beep)
   useEffect(() => {
-    const fetchNotifications = async () => {
-      if (!isAuthenticated) {
-        setNotifications([])
-        setUnreadCount(0)
-        return
-      }
+    let audioContext = null
+    
+    const createNotificationSound = () => {
       try {
-        const res = await listNotifications()
-        const items = Array.isArray(res.data) ? res.data : []
-        setNotifications(items)
-        setUnreadCount(items.filter(n => !n.readAt).length)
-      } catch (e) {
-        // ignore silently
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)()
+        }
+        
+        // First tone
+        const osc1 = audioContext.createOscillator()
+        const gain1 = audioContext.createGain()
+        osc1.connect(gain1)
+        gain1.connect(audioContext.destination)
+        osc1.frequency.value = 800
+        osc1.type = 'sine'
+        gain1.gain.setValueAtTime(0.2, audioContext.currentTime)
+        gain1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15)
+        osc1.start(audioContext.currentTime)
+        osc1.stop(audioContext.currentTime + 0.15)
+        
+        // Second tone (slightly higher)
+        const osc2 = audioContext.createOscillator()
+        const gain2 = audioContext.createGain()
+        osc2.connect(gain2)
+        gain2.connect(audioContext.destination)
+        osc2.frequency.value = 1000
+        osc2.type = 'sine'
+        gain2.gain.setValueAtTime(0.2, audioContext.currentTime + 0.15)
+        gain2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3)
+        osc2.start(audioContext.currentTime + 0.15)
+        osc2.stop(audioContext.currentTime + 0.3)
+      } catch (error) {
+        console.log('Sound play error:', error)
       }
     }
+    
+    notificationSoundRef.current = createNotificationSound
+    return () => {
+      if (audioContext && audioContext.state !== 'closed') {
+        audioContext.close()
+      }
+    }
+  }, [])
+
+  const fetchNotifications = async () => {
+    if (!isAuthenticated) {
+      setNotifications([])
+      setUnreadCount(0)
+      lastNotificationCountRef.current = 0
+      lastNotificationsRef.current = []
+      return
+    }
+    try {
+      const res = await listNotifications()
+      const items = Array.isArray(res.data) ? res.data : []
+      const currentUnreadCount = items.filter(n => !n.readAt).length
+      
+      // Find new notifications that weren't in the previous list
+      if (lastNotificationsRef.current.length > 0 && items.length > 0) {
+        const previousIds = new Set(lastNotificationsRef.current.map(n => n._id?.toString() || n._id))
+        const newNotifications = items.filter(n => {
+          const nId = n._id?.toString() || n._id
+          return !previousIds.has(nId) && !n.readAt
+        })
+        
+        // Show toast for each new notification
+        newNotifications.forEach(notification => {
+          // Play sound
+          try {
+            if (notificationSoundRef.current) {
+              notificationSoundRef.current()
+            }
+          } catch (soundError) {
+            console.log('Sound play error:', soundError)
+          }
+          
+          // Show toast notification
+          const actorName = notification.actor?.name || 'Someone'
+          const message = notification.message || 'sent you a notification'
+          const postId = notification.post?._id || notification.post
+          const statusId = notification.status?._id || notification.status
+          const notificationType = notification.type
+          
+          // Determine what to do on click based on notification type
+          const handleToastClick = () => {
+            if (notificationType === 'status_message' && statusId) {
+              // For status messages, navigate to community and trigger status opening
+              navigate('/community')
+              // Store status ID in sessionStorage to open it when community page loads
+              sessionStorage.setItem('openStatusId', statusId)
+              // Trigger custom event
+              window.dispatchEvent(new CustomEvent('openStatusFromNotification', { detail: { statusId } }))
+            } else if (postId) {
+              const id = postId._id || postId.id || postId
+              if (id) navigate(`/community/post/${id}`)
+            } else if (notificationType === 'friend_request') {
+              navigate(`/profile?userId=${notification.actor?._id}`)
+            }
+            toast.dismiss()
+          }
+          
+          toast(
+            <div 
+              onClick={handleToastClick}
+              style={{ cursor: (postId || statusId || notificationType === 'friend_request') ? 'pointer' : 'default' }}
+            >
+              <div className="d-flex align-items-center gap-2">
+                <img 
+                  src={notification.actor?.profilePicture ? `http://localhost:3000/${notification.actor.profilePicture}` : 'https://via.placeholder.com/32'} 
+                  alt={actorName}
+                  className="rounded-circle"
+                  style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                />
+                <div className="flex-grow-1">
+                  <div className="fw-semibold" style={{ fontSize: '0.9rem' }}>{actorName}</div>
+                  <div style={{ fontSize: '0.85rem', color: '#666' }}>{message}</div>
+                </div>
+              </div>
+            </div>,
+            {
+              position: "top-right",
+              autoClose: 4000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: true,
+              progress: undefined,
+            }
+          )
+        })
+      } else if (currentUnreadCount > lastNotificationCountRef.current && lastNotificationCountRef.current > 0) {
+        // Fallback: if we can't detect specific new notifications, still play sound
+        try {
+          if (notificationSoundRef.current) {
+            notificationSoundRef.current()
+          }
+        } catch (soundError) {
+          console.log('Sound play error:', soundError)
+        }
+      }
+      
+      setNotifications(items)
+      setUnreadCount(currentUnreadCount)
+      lastNotificationCountRef.current = currentUnreadCount
+      lastNotificationsRef.current = items
+    } catch (e) {
+      // ignore silently
+    }
+  }
+
+  useEffect(() => {
+    // Initial fetch
     fetchNotifications()
+    
+    // Set up polling every 3 seconds for real-time updates
+    if (isAuthenticated) {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchNotifications()
+      }, 3000) // Check every 3 seconds
+    }
+    
+    // Cleanup on unmount or when authentication changes
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
   }, [isAuthenticated])
 
   const openPost = (postId) => {
     setBellOpen(false)
-    if (postId) navigate(`/community/post/${postId}`)
+    // Handle both object and string formats
+    const id = postId?._id || postId?.id || postId
+    if (id) navigate(`/community/post/${id}`)
   }
 
   const openUserProfile = (userId) => {

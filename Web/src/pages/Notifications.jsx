@@ -1,27 +1,53 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiBell } from "react-icons/fi";
 import "../assests/css/notifications.css";
 import { listNotifications, markAllRead } from "../api/notificationsApi.jsx";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Notifications() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const navigate = useNavigate()
+  const pollingIntervalRef = useRef(null)
+  const { isAuthenticated } = useAuth()
 
   const fetchAll = async () => {
     try {
-      setLoading(true)
-      const res = await listNotifications()
-      setItems(Array.isArray(res.data) ? res.data : [])
-    } finally {
-      setLoading(false)
+      if (!loading) {
+        // Only show loading on initial fetch
+        const res = await listNotifications()
+        setItems(Array.isArray(res.data) ? res.data : [])
+      } else {
+        setLoading(true)
+        const res = await listNotifications()
+        setItems(Array.isArray(res.data) ? res.data : [])
+        setLoading(false)
+      }
+    } catch (error) {
+      if (loading) setLoading(false)
     }
   }
 
   useEffect(() => {
+    // Initial fetch
     fetchAll()
-  }, [])
+    
+    // Set up polling every 3 seconds for real-time updates
+    if (isAuthenticated) {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchAll()
+      }, 3000) // Check every 3 seconds
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [isAuthenticated])
 
   const handleMarkAllRead = async () => {
     try {
@@ -31,7 +57,9 @@ export default function Notifications() {
   }
 
   const openPost = (postId) => {
-    if (postId) navigate(`/community/post/${postId}`)
+    // Handle both object and string formats
+    const id = postId?._id || postId?.id || postId
+    if (id) navigate(`/community/post/${id}`)
   }
 
   const openUserProfile = (userId) => {
