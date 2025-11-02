@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser, FiMoreHorizontal, FiEdit2, FiTrash2, FiLock, FiGlobe, FiTag } from "react-icons/fi";
 import "../assests/css/community.css";
 import "../assests/css/stories.css";
-import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost } from "../api/postsApi.jsx";
+import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost, toggleSavePost } from "../api/postsApi.jsx";
 import { getTopCreators } from "../api/authApi.jsx";
 import { sendFriendRequest as apiSendFriendRequest } from "../api/authApi.jsx";
 import { useNavigate } from "react-router-dom";
@@ -1341,12 +1341,14 @@ function renderWithHashtags(text, onHashtagClick) {
   return hasMatches ? segments : text;
 }
 
-function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpdate, onPostDelete }) {
+function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpdate, onPostDelete, currentUser, onPostSave }) {
   const likeCount = post.likes?.length || 0;
   const commentCount = post.comments?.length || 0;
   const time = new Date(post.createdAt).toLocaleString();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [isSaved, setIsSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [replyingId, setReplyingId] = useState(null);
   const [replyText, setReplyText] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1354,9 +1356,37 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const isGif = post.imageUrl && /\.gif($|\?)/i.test(post.imageUrl);
-  const { user: currentUser } = useAuth();
   const hasLiked = post.likes && currentUser && post.likes.some(u => (u._id || u) === (currentUser._id || currentUser.id));
   const isAuthor = currentUser && (post.author?._id === currentUser._id || post.author?._id === currentUser.id);
+
+  // Check if post is saved
+  useEffect(() => {
+    if (currentUser?.savedPosts && post?._id) {
+      const saved = currentUser.savedPosts.some(id => {
+        const savedId = typeof id === 'string' ? id : id._id || id;
+        const postId = typeof post._id === 'string' ? post._id : post._id.toString();
+        return savedId === postId || String(savedId) === String(postId);
+      });
+      setIsSaved(saved);
+    }
+  }, [currentUser?.savedPosts, post?._id]);
+
+  const handleSave = async () => {
+    if (saving || !post?._id) return;
+    setSaving(true);
+    try {
+      await toggleSavePost(post._id);
+      setIsSaved(!isSaved);
+      // Update user's savedPosts in context
+      if (onPostSave) {
+        onPostSave(post._id, !isSaved);
+      }
+    } catch (err) {
+      console.error('Failed to save post', err);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Local handler for comment so per-card submitting is local not global
   const handleLocalAddComment = async (p, text, reset, parentCommentId) => {
@@ -1476,7 +1506,14 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
             <FiHeart color={hasLiked ? '#dc3545' : undefined} fill={hasLiked ? '#dc3545' : 'none'} style={{fontWeight: hasLiked ? 'bold' : 'normal'}}/>{' '}{likeCount}
           </button>
           <button type="button" onClick={()=>setShowComments(v=>!v)} className="btn btn-link p-0 text-decoration-none text-muted d-inline-flex align-items-center gap-1"><FiMessageSquare/> {commentCount}</button>
-          <span className="ms-auto d-inline-flex align-items-center gap-1"><FiBookmark/> Save</span>
+          <button 
+            type="button" 
+            onClick={handleSave}
+            disabled={saving}
+            className={`ms-auto btn btn-link p-0 text-decoration-none d-inline-flex align-items-center gap-1 ${isSaved ? 'text-primary' : 'text-muted'}`}
+          >
+            <FiBookmark fill={isSaved ? 'currentColor' : 'none'}/> {isSaved ? 'Saved' : 'Save'}
+          </button>
         </div>
         {showComments && (
           <div className="mt-3">
@@ -2154,6 +2191,25 @@ export default function Community() {
               onToggleLike={handleToggleLike} 
               onAddComment={handleAddComment} 
               onHashtagClick={setHashtagFilter}
+              currentUser={user}
+              onPostSave={(postId, isSaved) => {
+                // Update user's savedPosts in context
+                if (setUser) {
+                  setUser(prev => {
+                    if (!prev) return prev;
+                    const savedPosts = prev.savedPosts || [];
+                    if (isSaved) {
+                      return { ...prev, savedPosts: [...savedPosts, postId] };
+                    } else {
+                      return { ...prev, savedPosts: savedPosts.filter(id => {
+                        const savedId = typeof id === 'string' ? id : id._id || id;
+                        const pid = typeof postId === 'string' ? postId : postId.toString();
+                        return savedId !== pid && String(savedId) !== String(pid);
+                      }) };
+                    }
+                  });
+                }
+              }}
               onPostUpdate={(updatedPost) => {
                 setPosts(old => old.map(x => x._id === updatedPost._id ? updatedPost : x));
               }}
@@ -2440,11 +2496,15 @@ export default function Community() {
          
           <div className="fab-item fade-up-enter-active">
             <div className="label">Search</div>
-            <button onClick={()=>navigate('/search')}><FiSearch/></button>
+            <button onClick={()=>{ navigate('/search'); setFabOpen(false); }}><FiSearch/></button>
           </div>
           <div className="fab-item fade-up-enter-active">
             <div className="label">Create</div>
-            <button onClick={()=>document.querySelector('.card .card-body .flex-grow-1.bg-light')?.click()}><FiPlus/></button>
+            <button onClick={()=>{ document.querySelector('.card .card-body .flex-grow-1.bg-light')?.click(); setFabOpen(false); }}><FiPlus/></button>
+          </div>
+          <div className="fab-item fade-up-enter-active">
+            <div className="label">Saved Posts</div>
+            <button onClick={()=>{ navigate('/saved-posts'); setFabOpen(false); }}><FiBookmark/></button>
           </div>
        
          

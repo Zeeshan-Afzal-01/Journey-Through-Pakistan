@@ -112,6 +112,76 @@ export const getPost = async (req, res) => {
   }
 };
 
+export const toggleSavePost = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    
+    const post = await Post.findById(id);
+    if (!post) return res.status(404).json({ message: "Post not found" });
+    
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    
+    const isSaved = user.savedPosts && user.savedPosts.some(p => p.toString() === id);
+    
+    if (isSaved) {
+      // Unsave post
+      user.savedPosts = user.savedPosts.filter(p => p.toString() !== id);
+      await user.save();
+      res.json({ saved: false, message: "Post unsaved" });
+    } else {
+      // Save post
+      user.savedPosts = user.savedPosts || [];
+      user.savedPosts.push(id);
+      await user.save();
+      res.json({ saved: true, message: "Post saved" });
+    }
+  } catch (err) {
+    res.status(500).json({ message: "Failed to toggle save", error: err.message });
+  }
+};
+
+export const getSavedPosts = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+    
+    const savedPostIds = user.savedPosts || [];
+    if (savedPostIds.length === 0) {
+      return res.json([]);
+    }
+    
+    // Fetch posts with populated author and group
+    const savedPosts = await Post.find({ _id: { $in: savedPostIds } })
+      .populate("author", "name profilePicture city")
+      .populate("group", "name groupPhoto")
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" })
+      .sort({ createdAt: -1 });
+    
+    // Convert to objects and populate deeper nested replies
+    const out = [];
+    for (const post of savedPosts) {
+      if (!post) continue; // Skip null/deleted posts
+      const obj = post.toObject ? post.toObject() : post;
+      if (obj.comments && obj.comments.length > 0) {
+        await populateRepliesAuthors(obj.comments);
+      }
+      out.push(obj);
+    }
+    
+    res.json(out);
+  } catch (err) {
+    console.error('Error in getSavedPosts:', err);
+    res.status(500).json({ message: "Failed to fetch saved posts", error: err.message });
+  }
+};
+
 export const toggleLike = async (req, res) => {
   try {
     const userId = req.user?.id;

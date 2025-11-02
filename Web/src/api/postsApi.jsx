@@ -23,5 +23,7 @@ export const sharePost = (postId) => api.post(`/posts/${postId}/share`);
 export const updatePost = (postId, data) => api.put(`/posts/${postId}`, data);
 export const deletePost = (postId) => api.delete(`/posts/${postId}`);
 export const trendingHashtags = () => api.get('/posts/trending-hashtags');
+export const toggleSavePost = (postId) => api.post(`/posts/${postId}/save`);
+export const getSavedPosts = () => api.get('/posts/saved');
 
 
