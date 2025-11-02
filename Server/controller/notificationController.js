@@ -7,6 +7,8 @@ export const listMyNotifications = async (req, res) => {
     const notifications = await Notification.find({ recipient: userId })
       .sort({ createdAt: -1 })
       .populate("actor", "name profilePicture")
+      .populate("post", "_id")
+      .populate("status", "_id")
       .lean();
     res.json(notifications);
   } catch (err) {

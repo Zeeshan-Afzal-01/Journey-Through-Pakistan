@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser, FiMoreHorizontal, FiEdit2, FiTrash2, FiLock, FiGlobe, FiTag } from "react-icons/fi";
 import "../assests/css/community.css";
+import "../assests/css/stories.css";
 import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost } from "../api/postsApi.jsx";
 import { getTopCreators } from "../api/authApi.jsx";
 import { sendFriendRequest as apiSendFriendRequest } from "../api/authApi.jsx";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import { listStatuses as apiListStatuses, createStatus as apiCreateStatus, markStatusViewed as apiMarkViewed } from "../api/statusesApi.jsx";
+import { listStatuses as apiListStatuses, createStatus as apiCreateStatus, markStatusViewed as apiMarkViewed, addStatusReaction, removeStatusReaction, addStatusMessage } from "../api/statusesApi.jsx";
 import { acceptFriendRequest as apiAcceptFriendRequest, declineFriendRequest as apiDeclineFriendRequest } from "../api/authApi.jsx";
 import { trendingHashtags as apiTrendingHashtags } from '../api/postsApi.jsx';
 import { PostCardSkeleton, UserCardSkeleton, HashtagSkeleton, StatusBarSkeleton, GroupCardSkeleton } from '../components/SkeletonLoader.jsx';
@@ -625,62 +626,169 @@ function CreateStatusModal({ currentUser, onCreated, onClose }) {
 }
 
 function StatusBar({ currentUser, groups, onClickGroup, onAddRequested }) {
-  const getRingStyle = (count) => {
-    if (!count || count <= 1) return {};
-    const colors = ['#ff5f6d', '#ffc371', '#36d1dc', '#5b86e5', '#f7971e', '#c471ed'];
-    const step = 100 / count;
-    let gradient = '';
-    for (let i = 0; i < count; i++) {
-      const start = i * step;
-      const end = (i + 1) * step;
-      const color = colors[i % colors.length];
-      gradient += `${color} ${start}%, ${color} ${end}%` + (i < count - 1 ? ', ' : '');
-    }
-    return {
-      background: `conic-gradient(${gradient})`
-    };
+  // Check if user has viewed all statuses from a user
+  const hasUnviewedStatuses = (group) => {
+    if (!group?.items || group.items.length === 0) return false;
+    // Check if current user has viewed all statuses
+    return group.items.some(item => {
+      if (!item.views || !Array.isArray(item.views)) return true;
+      const userId = currentUser?._id || currentUser?.id;
+      if (!userId) return true;
+      return !item.views.some(v => (v._id || v) === userId);
+    });
   };
+
   return (
     <div className="card shadow-sm mb-3">
-      <div className="card-body py-2 stories-bar">
-        <div className="story-item" onClick={()=>onAddRequested?.()} style={{ cursor:'pointer' }}>
-          <div className="story-ring add">
-            <img src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : '/default-avatar.png'} alt={currentUser?.name||'You'} />
-            <span className="story-plus">+</span>
-          </div>
-          <div className="story-name">Add Status</div>
-        </div>
-        {groups.map((g, idx) => (
-          <div key={(g.user?._id||'u')+idx} className="story-item" onClick={()=>onClickGroup?.(idx)} style={{ cursor:'pointer' }}>
-            <div className="story-ring" style={getRingStyle(g.items?.length || 1)}>
-              <img src={g.user?.profilePicture ? `http://localhost:3000/${g.user.profilePicture}` : '/default-avatar.png'} alt={g.user?.name||'User'} />
+      <div className="stories-bar-container">
+        <div className="stories-bar">
+          {/* Add Story Button */}
+          <div className="story-item" onClick={() => onAddRequested?.()}>
+            <div className="story-avatar-wrapper add-story">
+              <img 
+                src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : '/default-avatar.png'} 
+                alt={currentUser?.name || 'You'} 
+              />
+              <span className="story-add-icon">+</span>
             </div>
-            <div className="story-name">{g.user?.name?.split(' ')[0] || 'User'}</div>
+            <div className="story-name">Your Story</div>
           </div>
-        ))}
+
+          {/* Friends' Stories */}
+          {groups.map((g, idx) => {
+            const hasUnviewed = hasUnviewedStatuses(g);
+            return (
+              <div 
+                key={(g.user?._id || 'u') + idx} 
+                className="story-item" 
+                onClick={() => onClickGroup?.(idx)}
+              >
+                <div className={`story-avatar-wrapper ${!hasUnviewed ? 'viewed' : ''}`}>
+                  <img 
+                    src={g.user?.profilePicture ? `http://localhost:3000/${g.user.profilePicture}` : '/default-avatar.png'} 
+                    alt={g.user?.name || 'User'} 
+                  />
+                </div>
+                <div className="story-name">{g.user?.name?.split(' ')[0] || 'User'}</div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
 
-function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, currentUser }) {
+function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, currentUser, onStatusUpdate, initialStatusId }) {
   const [index, setIndex] = useState(0);
   const [showViewers, setShowViewers] = useState(false);
+  const [showReactions, setShowReactions] = useState(false);
+  const [showMessages, setShowMessages] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [progressKey, setProgressKey] = useState(0);
+  const [messageText, setMessageText] = useState('');
+  const [sendingMessage, setSendingMessage] = useState(false);
+  const messageInputRef = React.useRef(null);
+  const progressIntervalRef = React.useRef(null);
   const group = groups[groupIndex];
   const items = group?.items || [];
   const item = items[index];
+  
+  // Update item in groups when status is updated
+  const updateItemInGroups = React.useCallback((updatedStatus) => {
+    if (onStatusUpdate) {
+      onStatusUpdate(updatedStatus);
+    }
+  }, [onStatusUpdate]);
 
-  useEffect(() => { setIndex(0); }, [groupIndex]);
+  const handleNext = React.useCallback(() => {
+    if (index < items.length - 1) {
+      setIndex(i => i + 1);
+      setProgressKey(prev => prev + 1);
+    } else if (groupIndex < groups.length - 1) {
+      onChangeGroup?.(groupIndex + 1);
+    } else {
+      onClose();
+    }
+  }, [index, items.length, groupIndex, groups.length, onChangeGroup, onClose]);
 
-  // Mark as viewed when viewing someone else's status
+  const handlePrev = React.useCallback(() => {
+    if (index > 0) {
+      setIndex(i => i - 1);
+      setProgressKey(prev => prev + 1);
+    } else if (groupIndex > 0) {
+      onChangeGroup?.(groupIndex - 1);
+    }
+  }, [index, groupIndex, onChangeGroup]);
+
+  // Find and navigate to specific status if initialStatusId is provided
   useEffect(() => {
-    const run = async () => {
+    if (initialStatusId && groups.length > 0) {
+      // Find which group contains this status
+      for (let gIdx = 0; gIdx < groups.length; gIdx++) {
+        const g = groups[gIdx];
+        const statusIdx = g.items?.findIndex(s => {
+          const sid = s._id || s;
+          return sid === initialStatusId || String(sid) === String(initialStatusId);
+        });
+        if (statusIdx >= 0) {
+          // Found the status, navigate to it
+          if (gIdx !== groupIndex) {
+            onChangeGroup?.(gIdx);
+          }
+          setIndex(statusIdx);
+          setProgressKey(prev => prev + 1);
+          setIsPaused(true); // Pause to show messages
+          // Show messages after a brief delay to ensure status is displayed
+          setTimeout(() => {
+            setShowMessages(true);
+          }, 300);
+          return;
+        }
+      }
+    }
+  }, [initialStatusId, groups, groupIndex, onChangeGroup]);
+
+  useEffect(() => { 
+    // Only reset if we're not navigating to a specific status
+    if (!initialStatusId || !item || item._id !== initialStatusId) {
+      setIndex(0);
+      setProgressKey(prev => prev + 1); // Reset progress animation
+      setIsPaused(false);
+      setShowMessages(false);
+    }
+  }, [groupIndex, initialStatusId, item]);
+
+  // Auto-advance functionality
+  useEffect(() => {
+    if (!item || isPaused || !items.length) return;
+
+    // Clear any existing interval
+    if (progressIntervalRef.current) {
+      clearTimeout(progressIntervalRef.current);
+    }
+
+    // Mark as viewed
+    const markViewed = async () => {
       if (item && currentUser && group?.user?._id !== currentUser._id) {
-        try { await apiMarkViewed(item._id); } catch {}
+        try { 
+          await apiMarkViewed(item._id); 
+        } catch {}
       }
     };
-    run();
-  }, [item?._id]);
+    markViewed();
+
+    // Auto-advance after 5 seconds
+    progressIntervalRef.current = setTimeout(() => {
+      handleNext();
+    }, 5000);
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearTimeout(progressIntervalRef.current);
+      }
+    };
+  }, [item?._id, index, isPaused, groupIndex, handleNext, items.length, group, currentUser]);
 
   const uniqueViews = React.useMemo(() => {
     if (!Array.isArray(item?.views)) return [];
@@ -690,104 +798,411 @@ function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, current
       if (id && !map.has(id)) map.set(id, v);
     }
     const arr = Array.from(map.values());
-    // Show newest viewers first (assuming incoming array is chronological)
     return arr.reverse();
   }, [item?.views]);
 
-  const goPrevItem = () => setIndex(i => Math.max(0, i - 1));
-  const goNextItem = () => setIndex(i => Math.min(items.length - 1, i + 1));
-  const goPrevGroup = () => onChangeGroup?.(Math.max(0, groupIndex - 1));
-  const goNextGroup = () => onChangeGroup?.(Math.min(groups.length - 1, groupIndex + 1));
-
-  const handlePointer = (e, isDown) => {
-    const el = e.currentTarget;
-    const rect = el.getBoundingClientRect();
-    const x = (e.touches?.[0]?.clientX ?? e.clientX) - rect.left;
-    const leftSide = x < rect.width / 2;
-    if (!isDown) return;
-    const start = Date.now();
-    const endHandler = (ev) => {
-      const dur = Date.now() - start;
-      const longPress = dur > 250; // threshold
-      const isLeft = leftSide;
-      if (longPress) {
-        if (isLeft) {
-          if (groupIndex > 0) onChangeGroup?.(groupIndex - 1);
-        } else {
-          if (groupIndex < groups.length - 1) onChangeGroup?.(groupIndex + 1);
-        }
-      } else {
-        if (isLeft) {
-          if (index > 0) setIndex(i=>i-1); else if (groupIndex>0) onChangeGroup?.(groupIndex-1);
-        } else {
-          if (index < items.length - 1) setIndex(i=>i+1); else if (groupIndex<groups.length-1) onChangeGroup?.(groupIndex+1);
-        }
-      }
-      window.removeEventListener('mouseup', endHandler);
-      window.removeEventListener('touchend', endHandler);
-    };
-    window.addEventListener('mouseup', endHandler);
-    window.addEventListener('touchend', endHandler, { once: true });
+  const handleContentClick = (e) => {
+    // Don't trigger navigation if clicking on pause indicator or other UI elements
+    if (e.target.closest('.story-paused') || e.target.closest('.story-header') || e.target.closest('.story-bottom-controls')) {
+      return;
+    }
+    
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const isLeftSide = x < rect.width / 2;
+    
+    if (isLeftSide) {
+      handlePrev();
+    } else {
+      handleNext();
+    }
   };
 
+  const handleContentTap = (e) => {
+    // Don't pause if clicking on navigation areas or UI elements
+    if (e.target.closest('.story-nav-left') || e.target.closest('.story-nav-right') || 
+        e.target.closest('.story-header') || e.target.closest('.story-bottom-controls')) {
+      return;
+    }
+    setIsPaused(prev => !prev);
+  };
+
+  // Swipe gesture support
+  const [touchStart, setTouchStart] = React.useState(null);
+  const [touchEnd, setTouchEnd] = React.useState(null);
+
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const onTouchMove = (e) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    
+    if (isLeftSwipe) {
+      handleNext();
+    } else if (isRightSwipe) {
+      handlePrev();
+    }
+  };
+
+  const getTimeAgo = (date) => {
+    if (!date) return '';
+    const now = new Date();
+    const diff = now - new Date(date);
+    const minutes = Math.floor(diff / 60000);
+    if (minutes < 1) return 'Just now';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h`;
+    const days = Math.floor(hours / 24);
+    return `${days}d`;
+  };
+
+  // Get current user's reaction
+  const getUserReaction = React.useMemo(() => {
+    if (!item?.reactions || !currentUser?._id) return null;
+    return item.reactions.find(r => {
+      const userId = r.user?._id || r.user;
+      const currentUserId = currentUser._id || currentUser.id;
+      return userId && currentUserId && String(userId) === String(currentUserId);
+    });
+  }, [item?.reactions, currentUser]);
+
+  const handleSendMessage = async () => {
+    if (!messageText.trim() || sendingMessage || !item) return;
+    
+    setSendingMessage(true);
+    try {
+      const { data } = await addStatusMessage(item._id, messageText.trim());
+      updateItemInGroups(data);
+      setMessageText('');
+      setIsPaused(false); // Resume after sending
+    } catch (err) {
+      console.error('Failed to send message', err);
+    } finally {
+      setSendingMessage(false);
+    }
+  };
+
+  // Reset message when item changes
+  useEffect(() => {
+    if (item) {
+      setMessageText('');
+      setIsPaused(false);
+      setShowReactions(false);
+    }
+  }, [item?._id]);
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      // Don't handle keyboard shortcuts if user is typing in input field
+      if (document.activeElement === messageInputRef.current || 
+          document.activeElement?.tagName === 'INPUT' || 
+          document.activeElement?.tagName === 'TEXTAREA') {
+        // Allow space key in input fields
+        if (e.key === ' ') {
+          return; // Don't prevent default, let space be typed
+        }
+        return; // Don't handle other keys when input is focused
+      }
+      
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrev();
+      }
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
+        handleNext();
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+      }
+      if (e.key === ' ') {
+        e.preventDefault();
+        setIsPaused(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [handlePrev, handleNext, onClose]);
+
   return (
-    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.9)" }}>
-      {/* Local CSS for a smooth slide-down animation */}
-      <style>{`
-        @keyframes slideDownFade { from { transform: translateY(-12px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
-      `}</style>
-      <div className="modal-dialog modal-dialog-centered modal-lg">
-        <div className="modal-content bg-dark text-white" style={{ overflow:'hidden', borderRadius: 16, position:'relative' }}>
-          <div className="modal-header border-0">
-            <div className="d-flex align-items-center gap-2">
-              <img className="rounded-circle" style={{ width:32, height:32, objectFit:'cover' }} src={group?.user?.profilePicture ? `http://localhost:3000/${group.user.profilePicture}` : '/default-avatar.png'} />
-              <div className="small fw-semibold">{group?.user?.name || 'User'}</div>
-            </div>
-            <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
-          </div>
-          {/* Item progress segments */}
-          <div className="px-3 pt-2 w-100">
-            <div className="story-progress d-flex gap-1">
-              {items.map((_, i) => (
-                <div key={i} className={`story-progress-seg ${i<=index ? 'active' : ''}`}></div>
-              ))}
-            </div>
-            
-          </div>
-          <div className="modal-body p-0 position-relative" style={{ background:'#000' }} onMouseDown={(e)=>handlePointer(e,true)} onTouchStart={(e)=>handlePointer(e,true)}>
-            {item ? (
-              <img src={`http://localhost:3000/${item.mediaUrl}`} alt="status" style={{ width:'100%', height:'70vh', objectFit:'contain', background:'#000' }} />
-            ) : (
-              <div className="text-center text-muted py-5">No status</div>
-            )}
-            <button className="btn btn-sm btn-outline-light position-absolute" style={{ left:12, top:'50%' }} onClick={index>0?goPrevItem:goPrevGroup} disabled={groupIndex===0 && index===0}>‹</button>
-            <button className="btn btn-sm btn-outline-light position-absolute" style={{ right:12, top:'50%' }} onClick={index<items.length-1?goNextItem:goNextGroup} disabled={groupIndex===groups.length-1 && index===items.length-1}>›</button>
-          </div>
-          <div className="modal-footer flex-column align-items-stretch border-0 w-100" style={{ gap: '8px', position:'relative' }}>
-            <div className="d-flex justify-content-between align-items-center w-100">
-              <div className="text-muted small">{items.length ? `${index+1} / ${items.length}` : 'No items'}</div>
-              <div className="d-flex align-items-center gap-2">
-                {group?.user?._id === currentUser?._id && (
-                  <button className="btn btn-sm btn-outline-light" onClick={()=> setShowViewers(v=>!v)}>
-                    Viewers ({uniqueViews.length})
-                  </button>
-                )}
+    <>
+      <div className="story-viewer-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+        <div className="story-viewer-container">
+          {group && (
+            <div className="story-content-wrapper">
+              {/* Progress Bars */}
+              <div className="story-progress-container">
+                <div className="story-progress-row">
+                  {items.map((_, i) => (
+                    <div 
+                      key={`${i}-${progressKey}`} 
+                      className={`story-progress-segment ${i < index ? 'completed' : i === index ? 'active' : ''}`}
+                    >
+                      <div className="story-progress-segment-fill"></div>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
-            {group?.user?._id === currentUser?._id && showViewers && (
-              <div className="bg-dark rounded p-2" style={{ position:'absolute', top: -70, right: 12, maxHeight: '150px', width:'280px', overflowY: 'auto', border: '1px solid #2a2a2a', boxShadow:'0 8px 30px rgba(0,0,0,.4)', animation:'slideDownFade 220ms ease-out', zIndex: 5 }}>
-                {uniqueViews.length === 0 && (
-                  <div className="text-muted xsmall">No viewers yet</div>
-                )}
-                {uniqueViews.map(v => (
-                  <div key={v._id || v.id} className="d-flex align-items-center gap-2 py-1">
-                    <img className="rounded-circle" style={{ width:26, height:26, objectFit:'cover' }} src={v.profilePicture ? `http://localhost:3000/${v.profilePicture}` : '/default-avatar.png'} alt={v.name} />
-                    <div className="small">{v.name}</div>
+
+              {/* Header */}
+              <div className="story-header">
+                <div className="story-header-left">
+                  <img 
+                    className="story-header-avatar" 
+                    src={group?.user?.profilePicture ? `http://localhost:3000/${group.user.profilePicture}` : '/default-avatar.png'} 
+                    alt={group?.user?.name || 'User'} 
+                  />
+                  <div className="story-header-info">
+                    <div className="story-header-name">{group?.user?.name || 'User'}</div>
+                    <div className="story-header-time">{getTimeAgo(item?.createdAt)}</div>
                   </div>
-                ))}
+                </div>
+                <button className="story-close-btn" onClick={onClose}>×</button>
               </div>
-            )}
-          </div>
+
+              {/* Content Area */}
+              <div 
+                className="story-content-area" 
+                onClick={handleContentTap}
+                onTouchStart={onTouchStart}
+                onTouchMove={onTouchMove}
+                onTouchEnd={onTouchEnd}
+              >
+                {item ? (
+                  <img 
+                    className="story-image" 
+                    src={`http://localhost:3000/${item.mediaUrl}`} 
+                    alt="status" 
+                  />
+                ) : (
+                  <div className="text-center text-white py-5">No status</div>
+                )}
+                
+                {/* Navigation Areas */}
+                <div className="story-nav-left" onClick={handleContentClick}></div>
+                <div className="story-nav-right" onClick={handleContentClick}></div>
+
+                {/* Pause Indicator */}
+                {isPaused && <div className="story-paused">Paused</div>}
+              </div>
+
+              {/* Bottom Controls */}
+              <div className="story-bottom-controls">
+                {group?.user?._id !== currentUser?._id ? (
+                  <div className="d-flex align-items-center gap-2" style={{ width: '100%' }}>
+                    {/* React Button */}
+                    <div className="position-relative">
+                      <button 
+                        className="story-action-btn"
+                        onClick={() => setShowReactions(!showReactions)}
+                      >
+                        {getUserReaction ? 
+                          (getUserReaction.type === 'like' ? '👍' : 
+                           getUserReaction.type === 'love' ? '❤️' :
+                           getUserReaction.type === 'laugh' ? '😂' :
+                           getUserReaction.type === 'wow' ? '😮' :
+                           getUserReaction.type === 'sad' ? '😢' : '😠') : '❤️'}
+                      </button>
+                      {showReactions && (
+                        <>
+                          <div 
+                            className="position-fixed top-0 start-0 w-100 h-100" 
+                            style={{ zIndex: 10001 }}
+                            onClick={() => setShowReactions(false)}
+                          ></div>
+                          <div className="story-reactions-picker" style={{ zIndex: 10002 }}>
+                            {[
+                              { type: 'like', emoji: '👍', label: 'Like' },
+                              { type: 'love', emoji: '❤️', label: 'Love' },
+                              { type: 'laugh', emoji: '😂', label: 'Haha' },
+                              { type: 'wow', emoji: '😮', label: 'Wow' },
+                              { type: 'sad', emoji: '😢', label: 'Sad' },
+                              { type: 'angry', emoji: '😠', label: 'Angry' },
+                            ].map(reaction => (
+                              <button
+                                key={reaction.type}
+                                className="story-reaction-btn"
+                                onClick={async () => {
+                                  try {
+                                    const existingReaction = getUserReaction?.type;
+                                    if (existingReaction === reaction.type) {
+                                      // Remove reaction if clicking same one
+                                      const { data } = await removeStatusReaction(item._id);
+                                      updateItemInGroups(data);
+                                    } else {
+                                      const { data } = await addStatusReaction(item._id, reaction.type);
+                                      updateItemInGroups(data);
+                                    }
+                                    setShowReactions(false);
+                                  } catch (err) {
+                                    console.error('Failed to toggle reaction', err);
+                                  }
+                                }}
+                                title={reaction.label}
+                              >
+                                {reaction.emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    
+                    {/* Message Input */}
+                    <div className="story-reply-area" style={{ flex: 1 }}>
+                      <input 
+                        ref={messageInputRef}
+                        type="text" 
+                        className="story-reply-input" 
+                        placeholder="Send message" 
+                        value={messageText}
+                        onChange={(e) => {
+                          setMessageText(e.target.value);
+                          if (!isPaused && e.target.value.trim()) {
+                            setIsPaused(true); // Auto-pause when typing
+                          }
+                        }}
+                        onFocus={() => {
+                          if (!isPaused) {
+                            setIsPaused(true); // Pause when input focused
+                          }
+                        }}
+                        onBlur={() => {
+                          if (isPaused && !messageText.trim()) {
+                            setIsPaused(false); // Resume if no text
+                          }
+                        }}
+                        onKeyPress={async (e) => {
+                          if (e.key === 'Enter' && messageText.trim() && !sendingMessage) {
+                            e.preventDefault();
+                            await handleSendMessage();
+                          }
+                        }}
+                      />
+                      <button 
+                        className="story-send-btn"
+                        onClick={handleSendMessage}
+                        disabled={!messageText.trim() || sendingMessage}
+                      >
+                        {sendingMessage ? '...' : '→'}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="d-flex align-items-center gap-2">
+                    <button 
+                      className="story-viewers-btn" 
+                      onClick={() => setShowViewers(true)}
+                    >
+                      {uniqueViews.length} viewer{uniqueViews.length !== 1 ? 's' : ''}
+                    </button>
+                    {item?.messages && item.messages.length > 0 && (
+                      <button 
+                        className="story-viewers-btn" 
+                        onClick={() => setShowMessages(!showMessages)}
+                      >
+                        {item.messages.length} message{item.messages.length !== 1 ? 's' : ''}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Viewers Modal */}
+      {showViewers && (
+        <ViewersModal 
+          viewers={uniqueViews}
+          onClose={() => setShowViewers(false)}
+        />
+      )}
+
+      {/* Messages Modal - Show messages when opened from notification */}
+      {showMessages && item?.messages && item.messages.length > 0 && (
+        <MessagesModal
+          messages={item.messages}
+          onClose={() => setShowMessages(false)}
+        />
+      )}
+    </>
+  );
+}
+
+function MessagesModal({ messages, onClose }) {
+  return (
+    <div className="viewers-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="viewers-modal">
+        <div className="viewers-modal-header">
+          <h5 className="viewers-modal-title">Messages</h5>
+          <button className="viewers-modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="viewers-modal-body">
+          {messages.length === 0 ? (
+            <div className="text-center text-muted py-4">No messages yet</div>
+          ) : (
+            messages.map(msg => (
+              <div key={msg._id || msg.id} className="viewer-item">
+                <img 
+                  className="viewer-avatar" 
+                  src={msg.author?.profilePicture ? `http://localhost:3000/${msg.author.profilePicture}` : '/default-avatar.png'} 
+                  alt={msg.author?.name || 'User'} 
+                />
+                <div className="viewer-info">
+                  <div className="viewer-name">{msg.author?.name || 'User'}</div>
+                  <div className="text-muted small mt-1">{msg.text}</div>
+                  <div className="text-muted xsmall mt-1">{new Date(msg.createdAt).toLocaleString()}</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ViewersModal({ viewers, onClose }) {
+  return (
+    <div className="viewers-modal-overlay" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="viewers-modal">
+        <div className="viewers-modal-header">
+          <h5 className="viewers-modal-title">Viewers</h5>
+          <button className="viewers-modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="viewers-modal-body">
+          {viewers.length === 0 ? (
+            <div className="text-center text-muted py-4">No viewers yet</div>
+          ) : (
+            viewers.map(v => (
+              <div key={v._id || v.id} className="viewer-item">
+                <img 
+                  className="viewer-avatar" 
+                  src={v.profilePicture ? `http://localhost:3000/${v.profilePicture}` : '/default-avatar.png'} 
+                  alt={v.name} 
+                />
+                <div className="viewer-info">
+                  <div className="viewer-name">{v.name || 'User'}</div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
       </div>
     </div>
@@ -1365,7 +1780,24 @@ function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, 
   );
 }
 
-function NotificationsCenter({ notifications, onClose, navigate, setNotifications, user, setUser }) {
+function NotificationsCenter({ notifications, onClose, navigate, setNotifications, user, setUser, onOpenStatus }) {
+  const handleNotificationClick = (n) => {
+    if (n.type === 'status_message' && n.status) {
+      // Open status viewer with the specific status
+      const statusId = n.status?._id || n.status;
+      if (statusId) {
+        onOpenStatus?.(statusId);
+        onClose();
+      }
+    } else if (n.post) {
+      navigate(`/community/post/${n.post}`);
+      onClose();
+    } else if (n.actor && n.type !== 'friend_request') {
+      navigate(`/profile?userId=${n.actor?._id || n.actor}`);
+      onClose();
+    }
+  };
+
   return (
     <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
       <div className="modal-dialog modal-dialog-scrollable modal-lg">
@@ -1378,16 +1810,19 @@ function NotificationsCenter({ notifications, onClose, navigate, setNotification
             {notifications.length === 0 && <div className="text-muted small">No notifications</div>}
             <div className="d-flex flex-column gap-2">
               {notifications.map(n => (
-                <div key={n._id} className="d-flex align-items-start gap-2 border rounded p-2">
+                <div key={n._id} className="d-flex align-items-start gap-2 border rounded p-2" style={{ cursor: 'pointer' }} onClick={() => handleNotificationClick(n)}>
                   <img className="rounded-circle" style={{ width: 36, height: 36, objectFit:'cover', cursor:'pointer' }}
-                       onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}
+                       onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }}
                        src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
-                  <div className="small flex-grow-1" style={{cursor:'pointer'}} onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}>
-                    <span className="fw-semibold">{n.actor?.name || 'Someone'}</span> {n.message}
+                  <div className="small flex-grow-1">
+                    <span className="fw-semibold" onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }} style={{ cursor: 'pointer' }}>{n.actor?.name || 'Someone'}</span> {n.message}
                     <div className="text-muted xsmall">{new Date(n.createdAt).toLocaleString?.() || ''}</div>
+                    {n.type === 'status_message' && (
+                      <div className="text-primary xsmall mt-1">Click to view status</div>
+                    )}
                   </div>
                   {n.type === 'friend_request' && (
-                    <div className="d-flex gap-1">
+                    <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
                       <button className="btn btn-sm btn-success"
                         onClick={async()=>{
                           try {
@@ -1440,6 +1875,7 @@ export default function Community() {
     return Array.from(map.values());
   }, [statuses]);
   const [viewerGroupIndex, setViewerGroupIndex] = useState(-1);
+  const [initialStatusId, setInitialStatusId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -1822,11 +2258,39 @@ export default function Community() {
         </div>
       </div>
     </div>
+    {showNotificationsCenter && (
+      <NotificationsCenter
+        notifications={notifications}
+        onClose={() => setShowNotificationsCenter(false)}
+        navigate={navigate}
+        setNotifications={setNotifications}
+        user={user}
+        setUser={setUser}
+        onOpenStatus={handleOpenStatusFromNotification}
+      />
+    )}
     {showStatusModal && (
       <CreateStatusModal currentUser={user} onCreated={(s)=> { setStatuses(old=>[s, ...old]); setShowStatusModal(false); }} onClose={()=> setShowStatusModal(false)} />
     )}
     {viewerGroupIndex >= 0 && statusGroups.length > 0 && (
-      <StatusViewerModal groups={statusGroups} groupIndex={viewerGroupIndex} onChangeGroup={(idx)=> setViewerGroupIndex(idx)} onClose={()=> setViewerGroupIndex(-1)} currentUser={user} />
+      <StatusViewerModal 
+        groups={statusGroups} 
+        groupIndex={viewerGroupIndex} 
+        onChangeGroup={(idx)=> {
+          setViewerGroupIndex(idx);
+          setInitialStatusId(null); // Clear initial status when changing groups manually
+        }} 
+        onClose={()=> {
+          setViewerGroupIndex(-1);
+          setInitialStatusId(null);
+        }} 
+        currentUser={user}
+        initialStatusId={initialStatusId}
+        onStatusUpdate={(updatedStatus) => {
+          // Update the status in statuses array
+          setStatuses(old => old.map(s => s._id === updatedStatus._id ? updatedStatus : s));
+        }}
+      />
     )}
     {showCreateGroupModal && (
       <CreateGroupModal 
@@ -1884,41 +2348,70 @@ export default function Community() {
               <button className="btn btn-link btn-sm" onClick={()=> setShowNotificationsCenter(true)}>Open center</button>
             </div>
             <div className="d-flex flex-column gap-2 p-1">
-              {notifications.slice(0,6).map(n => (
-                <div key={n._id} className="d-flex align-items-start gap-2">
-                  <img className="rounded-circle" style={{ width: 28, height: 28, objectFit:'cover', cursor:'pointer' }}
-                       onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}
-                       src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
-                  <div className="small flex-grow-1" style={{cursor:'pointer'}} onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}>
-                    <span className="fw-semibold">{n.actor?.name || 'Someone'}</span> {n.message}
-                  </div>
-                  {n.type === 'friend_request' && (
-                    <div className="d-flex gap-1">
-                      <button className="btn btn-sm btn-success"
-                        onClick={async()=>{
-                          try {
-                            await apiAcceptFriendRequest(n.actor?._id || n.actor);
-                            if (typeof setUser === 'function') {
-                              setUser(prev => prev ? { ...prev, friends: Array.from(new Set([...(prev.friends||[]), (n.actor?._id || n.actor)])), friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
-                            }
-                            // remove notification locally
-                            setNotifications(old => old.filter(x => x._id !== n._id));
-                          } catch {}
-                        }}>Approve</button>
-                      <button className="btn btn-sm btn-outline-secondary"
-                        onClick={async()=>{
-                          try {
-                            await apiDeclineFriendRequest(n.actor?._id || n.actor);
-                            if (typeof setUser === 'function') {
-                              setUser(prev => prev ? { ...prev, friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
-                            }
-                            setNotifications(old => old.filter(x => x._id !== n._id));
-                          } catch {}
-                        }}>Reject</button>
+              {notifications.slice(0,6).map(n => {
+                const handleNotificationClick = () => {
+                  if (n.type === 'status_message' && n.status) {
+                    const statusId = n.status?._id || n.status;
+                    if (statusId) {
+                      // Find which group contains this status
+                      const status = statuses.find(s => (s._id || s) === statusId);
+                      if (status) {
+                        const groupIdx = statusGroups.findIndex(g => (g.user?._id || g.user) === (status.author?._id || status.author));
+                        if (groupIdx >= 0) {
+                          setViewerGroupIndex(groupIdx);
+                          setInitialStatusId(statusId);
+                          setFabBellOpen(false);
+                        }
+                      }
+                    }
+                  } else if (n.post) {
+                    navigate(`/community/post/${n.post}`);
+                    setFabBellOpen(false);
+                  } else if (n.actor && n.type !== 'friend_request') {
+                    navigate(`/profile?userId=${n.actor?._id || n.actor}`);
+                    setFabBellOpen(false);
+                  }
+                };
+
+                return (
+                  <div key={n._id} className="d-flex align-items-start gap-2" style={{ cursor: 'pointer' }} onClick={handleNotificationClick}>
+                    <img className="rounded-circle" style={{ width: 28, height: 28, objectFit:'cover', cursor:'pointer' }}
+                         onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }}
+                         src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
+                    <div className="small flex-grow-1">
+                      <span className="fw-semibold" onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }} style={{ cursor: 'pointer' }}>{n.actor?.name || 'Someone'}</span> {n.message}
+                      {n.type === 'status_message' && (
+                        <div className="text-primary xsmall mt-1">Click to view status</div>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+                    {n.type === 'friend_request' && (
+                      <div className="d-flex gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button className="btn btn-sm btn-success"
+                          onClick={async()=>{
+                            try {
+                              await apiAcceptFriendRequest(n.actor?._id || n.actor);
+                              if (typeof setUser === 'function') {
+                                setUser(prev => prev ? { ...prev, friends: Array.from(new Set([...(prev.friends||[]), (n.actor?._id || n.actor)])), friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
+                              }
+                              // remove notification locally
+                              setNotifications(old => old.filter(x => x._id !== n._id));
+                            } catch {}
+                          }}>Approve</button>
+                        <button className="btn btn-sm btn-outline-secondary"
+                          onClick={async()=>{
+                            try {
+                              await apiDeclineFriendRequest(n.actor?._id || n.actor);
+                              if (typeof setUser === 'function') {
+                                setUser(prev => prev ? { ...prev, friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
+                              }
+                              setNotifications(old => old.filter(x => x._id !== n._id));
+                            } catch {}
+                          }}>Reject</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {notifications.length === 0 && <div className="text-muted small">No notifications</div>}
             </div>
           </div>
