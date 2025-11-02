@@ -6,16 +6,79 @@ import { useContext } from "react";
 import { useLocation } from "react-router-dom";
 import api from "../api/api.jsx";
 import { listPostsByAuthor } from "../api/postsApi.jsx";
+import { listGroups } from "../api/groupsApi.jsx";
 import { Link } from "react-router-dom";
 import { updateMe as apiUpdateMe } from "../api/authApi.jsx";
+import {
+  sendFriendRequest,
+  acceptFriendRequest,
+  declineFriendRequest,
+  cancelFriendRequest,
+  unfriend
+} from "../api/authApi.jsx";
+import { ProfileSkeleton, PostCardSkeleton } from '../components/SkeletonLoader.jsx';
+import "../assests/css/skeleton.css";
 
 export default function Profile() {
   const { user } = useContext(AuthContext);
   const location = useLocation();
   const [otherUser, setOtherUser] = useState(null)
+  const [loadingUser, setLoadingUser] = useState(false)
   const [userPosts, setUserPosts] = useState([])
+  const [filteredUserPosts, setFilteredUserPosts] = useState([])
   const [loadingPosts, setLoadingPosts] = useState(true)
   const [uploadingPic, setUploadingPic] = useState(false)
+  const [groups, setGroups] = useState([])
+
+  // Friend request state logic
+  const [friendActionLoading, setFriendActionLoading] = useState(false);
+  const isMe = !otherUser || user?._id === otherUser?._id;
+  const isFriend = user?.friends?.includes(otherUser?._id);
+  const requestSent = user?.sentRequests?.includes(otherUser?._id);
+  const requestReceived = user?.friendRequests?.includes(otherUser?._id);
+
+  const handleAddFriend = async () => {
+    setFriendActionLoading(true);
+    try {
+      await sendFriendRequest(otherUser._id);
+      // refetch or patch state manually
+      setOtherUser({ ...otherUser });
+      if (user.sentRequests) user.sentRequests.push(otherUser._id);
+    } finally { setFriendActionLoading(false); }
+  };
+  const handleCancelRequest = async () => {
+    setFriendActionLoading(true);
+    try {
+      await cancelFriendRequest(otherUser._id);
+      if (user.sentRequests) user.sentRequests = user.sentRequests.filter(id => id !== otherUser._id);
+      setOtherUser({ ...otherUser });
+    } finally { setFriendActionLoading(false); }
+  };
+  const handleAccept = async () => {
+    setFriendActionLoading(true);
+    try {
+      await acceptFriendRequest(otherUser._id);
+      if (user.friends) user.friends.push(otherUser._id);
+      if (user.friendRequests) user.friendRequests = user.friendRequests.filter(id => id !== otherUser._id);
+      setOtherUser({ ...otherUser });
+    } finally { setFriendActionLoading(false); }
+  };
+  const handleDecline = async () => {
+    setFriendActionLoading(true);
+    try {
+      await declineFriendRequest(otherUser._id);
+      if (user.friendRequests) user.friendRequests = user.friendRequests.filter(id => id !== otherUser._id);
+      setOtherUser({ ...otherUser });
+    } finally { setFriendActionLoading(false); }
+  };
+  const handleUnfriend = async () => {
+    setFriendActionLoading(true);
+    try {
+      await unfriend(otherUser._id);
+      if (user.friends) user.friends = user.friends.filter(id => id !== otherUser._id);
+      setOtherUser({ ...otherUser });
+    } finally { setFriendActionLoading(false); }
+  };
 
   const queryUserId = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -26,15 +89,32 @@ export default function Profile() {
     const load = async () => {
       if (queryUserId && (!user || user._id !== queryUserId)) {
         try {
+          setLoadingUser(true);
           const res = await api.get(`/users/${queryUserId}`)
           setOtherUser(res.data)
         } catch {}
+        finally {
+          setLoadingUser(false);
+        }
       } else {
         setOtherUser(null)
+        setLoadingUser(false);
       }
     }
     load()
   }, [queryUserId, user])
+
+  // Fetch groups to check membership
+  useEffect(() => {
+    const fetchGroups = async () => {
+      if (!user?._id) return;
+      try {
+        const res = await listGroups();
+        setGroups(Array.isArray(res.data) ? res.data : []);
+      } catch {}
+    };
+    fetchGroups();
+  }, [user]);
 
   useEffect(() => {
     const fetchPosts = async () => {
@@ -43,13 +123,46 @@ export default function Profile() {
       try {
         setLoadingPosts(true)
         const res = await listPostsByAuthor(targetId)
-        setUserPosts(Array.isArray(res.data) ? res.data : [])
+        const allPosts = Array.isArray(res.data) ? res.data : [];
+        setUserPosts(allPosts);
       } finally {
         setLoadingPosts(false)
       }
     }
     fetchPosts()
   }, [otherUser, user])
+
+  // Filter posts based on group membership
+  useEffect(() => {
+    if (!user?._id || isMe) {
+      // If viewing own profile, show all posts
+      setFilteredUserPosts(userPosts);
+      return;
+    }
+
+    // If viewing someone else's profile, filter out group posts where current user is not a member
+    const filtered = userPosts.filter(post => {
+      // If post doesn't belong to a group, show it
+      if (!post.group) return true;
+
+      // If post belongs to a group, check if current user is a member
+      const groupId = post.group._id || post.group;
+      const group = groups.find(g => g._id === groupId);
+      
+      // If group not found in our list, it means user doesn't have access to it, so hide the post
+      // This could happen if the group is private and user hasn't joined/requested
+      if (!group) return false;
+
+      // Check if current user is a member or admin of the group
+      const isMember = group.members?.some(m => (m._id || m) === user._id) || 
+                      group.admin?._id === user._id || 
+                      (typeof group.admin === 'string' && group.admin === user._id);
+      
+      return isMember; // Show post only if user is a member
+    });
+
+    setFilteredUserPosts(filtered);
+  }, [userPosts, groups, user, isMe])
 
   const viewingUser = otherUser || user
   const profilePicture = viewingUser?.profilePicture ? `http://localhost:3000/${viewingUser.profilePicture}` : "https://via.placeholder.com/80";
@@ -71,8 +184,10 @@ export default function Profile() {
   
   return (
     <div className="container-fluid profile-page py-53">
-      <h2 className="fw-bold mb-3">{otherUser ? `${viewingUser.name}'s Profile` : "Your Profile"}</h2>
-
+      <h2 className="fw-bold mb-3">{otherUser ? `${viewingUser?.name || ''}'s Profile` : "Your Profile"}</h2>
+      {loadingUser ? (
+        <ProfileSkeleton />
+      ) : (
       <div className="row g-3">
         {/* Left column: avatar card + personal info + interests */}
         <div className="col-12 col-xl-6">
@@ -101,14 +216,32 @@ export default function Profile() {
               </p>
             </div>
           </div>
-
           {/* Personal Information or Actions */}
           {otherUser ? (
             <div className="card shadow-sm mb-3">
               <div className="card-body">
-                <div className="d-flex gap-2">
-                  <button className="btn btn-primary">Add Friend</button>
-                  <button className="btn btn-outline-secondary">Message</button>
+                <div className="d-flex gap-2 align-items-center">
+                  {!isFriend && !requestSent && !requestReceived && (
+                    <button className="btn btn-primary" disabled={friendActionLoading} onClick={handleAddFriend}>Add Friend</button>
+                  )}
+                  {requestSent && (
+                    <button className="btn btn-outline-danger" disabled={friendActionLoading} onClick={handleCancelRequest}>Cancel Request</button>
+                  )}
+                  {requestReceived && (
+                    <>
+                      <button className="btn btn-success" disabled={friendActionLoading} onClick={handleAccept}>Accept</button>
+                      <button className="btn btn-outline-secondary" disabled={friendActionLoading} onClick={handleDecline}>Decline</button>
+                    </>
+                  )}
+                  {isFriend && (
+                    <>
+                      <button className="btn btn-outline-danger" disabled={friendActionLoading} onClick={handleUnfriend}>Unfriend</button>
+                      <Link to={`/chats?user=${otherUser._id}`} className="btn btn-outline-secondary">Message</Link>
+                    </>
+                  )}
+                  {!isFriend && !requestSent && !requestReceived && (
+                    <button className="btn btn-secondary" disabled title="Only friends can message">Message</button>
+                  )}
                 </div>
               </div>
             </div>
@@ -137,7 +270,6 @@ export default function Profile() {
               </div>
             </div>
           )}
-
           {/* Interests */}
           <div className="card shadow-sm">
             <div className="card-body">
@@ -165,7 +297,6 @@ export default function Profile() {
             </div>
           </div>
         </div>
-
         {/* Right column: recent activity + contributions */}
         <div className="col-12 col-xl-6">
           {/* Recent Activity */}
@@ -173,7 +304,7 @@ export default function Profile() {
             <div className="card-body">
               <h6 className="fw-bold mb-3">Recent Activity</h6>
               <ul className="list-unstyled profile-activity mb-0">
-                {(userPosts.slice(0,5)).map((p) => (
+                {(filteredUserPosts.slice(0,5)).map((p) => (
                   <li key={p._id} className="d-flex align-items-start gap-2 py-2 border-bottom last-border-0">
                     <span className="activity-dot mt-1"></span>
                     <div className="flex-grow-1">
@@ -184,22 +315,34 @@ export default function Profile() {
                     </div>
                   </li>
                 ))}
-                {userPosts.length === 0 ? (
+                {filteredUserPosts.length === 0 ? (
                   <li className="text-muted small">No recent activity yet</li>
                 ) : null}
               </ul>
             </div>
           </div>
-
           {/* Contributions grid */}
           <div className="card shadow-sm">
             <div className="card-body">
-              <h6 className="fw-bold mb-3">{otherUser ? `${viewingUser.name}'s Posts` : 'My Contributions'}</h6>
+              <h6 className="fw-bold mb-3">{otherUser ? `${viewingUser?.name || ''}'s Posts` : 'My Contributions'}</h6>
               {loadingPosts ? (
-                <div className="text-muted small">Loading posts...</div>
+                <div className="row g-3">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="col-12 col-md-6">
+                      <div className="card h-100 shadow-sm">
+                        <div className="skeleton-image" style={{ width: '100%', height: '180px', borderRadius: '8px 8px 0 0' }}></div>
+                        <div className="card-body">
+                          <div className="skeleton-text mb-2" style={{ width: '100%', height: '16px' }}></div>
+                          <div className="skeleton-text mb-2" style={{ width: '80%', height: '16px' }}></div>
+                          <div className="skeleton-text" style={{ width: '60px', height: '12px' }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="row g-3">
-                  {userPosts.map((p) => (
+                  {filteredUserPosts.map((p) => (
                     <div key={p._id} className="col-12 col-md-6">
                       <div className="card h-100 contribution-card shadow-sm">
                         {p.imageUrl ? (
@@ -225,7 +368,7 @@ export default function Profile() {
                       </div>
                     </div>
                   ))}
-                  {userPosts.length === 0 ? (
+                  {filteredUserPosts.length === 0 ? (
                     <div className="text-muted small">No posts yet</div>
                   ) : null}
                 </div>
@@ -234,8 +377,7 @@ export default function Profile() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }
-
-

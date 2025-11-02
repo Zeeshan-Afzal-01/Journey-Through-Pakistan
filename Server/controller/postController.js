@@ -1,10 +1,20 @@
 import Post from "../models/post.models.js";
 import Notification from "../models/notification.models.js";
+import User from "../models/user.models.js";
+import Hashtag from "../models/hashtag.models.js";
+
+function extractHashtags(text) {
+  if (!text) return [];
+  return [...text.matchAll(/#(\w{2,})/g)].map(x => x[1].toLowerCase());
+}
 
 export const createPost = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { text, imageUrl, place, feeling } = req.body;
+    const { text, imageUrl, place, feeling, privacy, group } = req.body;
+ 
+   
+
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     // Accept either text or an image (like Facebook). Require at least one.
 
@@ -17,8 +27,34 @@ export const createPost = async (req, res) => {
       return res.status(400).json({ message: "Post must include text or an image" });
     }
 
-    const post = await Post.create({ author: userId, text, imageUrl: finalImageUrl, place, feeling });
-    const populated = await post.populate("author", "name profilePicture city");
+    // If posting to a group, verify user is a member
+    if (group) {
+      const Group = (await import("../models/group.models.js")).default;
+      const groupDoc = await Group.findById(group);
+      if (!groupDoc) {
+        return res.status(404).json({ message: "Group not found" });
+      }
+      if (!groupDoc.members.includes(userId) && groupDoc.admin.toString() !== userId) {
+        return res.status(403).json({ message: "You must be a member of the group to post" });
+      }
+    }
+
+    // --- Hashtag extraction logic ---
+    const hashtags = extractHashtags(text || "");
+
+
+    const post = await Post.create({ author: userId, text, imageUrl: finalImageUrl, place, feeling, privacy, group: group || null, hashtags });
+    // Update/increment hashtags collection for each tag
+    for (const tag of hashtags) {
+      await Hashtag.findOneAndUpdate(
+        { tag },
+        { $inc: { count: 1 }, $set: { lastUsed: new Date() } },
+        { upsert: true }
+      );
+    }
+    const populated = await Post.findById(post._id)
+      .populate("author", "name profilePicture city")
+      .populate("group", "name");
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to create post", error: err.message });
@@ -27,9 +63,11 @@ export const createPost = async (req, res) => {
 
 export const listPosts = async (req, res) => {
   try {
-    const { author, q } = req.query;
+    const { author, q, group, excludeGroup } = req.query;
     const filter = {};
     if (author) filter.author = author;
+    if (group) filter.group = group;
+    if (excludeGroup === 'true') filter.group = { $exists: false }; // Only non-group posts
     if (q) {
       const regex = new RegExp(q, 'i');
       filter.$or = [
@@ -38,11 +76,20 @@ export const listPosts = async (req, res) => {
         { feeling: regex },
       ];
     }
-    const posts = await Post.find(filter)
+    let posts = await Post.find(filter)
       .sort({ createdAt: -1 })
       .populate("author", "name profilePicture city")
-      .lean();
-    res.json(posts);
+      .populate("group", "name")
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" });
+    // Convert and recursively populate deeper replies
+    const out = [];
+    for (let p of posts) {
+      const obj = p.toObject();
+      await populateRepliesAuthors(obj.comments);
+      out.push(obj);
+    }
+    res.json(out);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch posts", error: err.message });
   }
@@ -51,9 +98,13 @@ export const listPosts = async (req, res) => {
 export const getPost = async (req, res) => {
   try {
     const { id } = req.params;
-    const post = await Post.findById(id)
+    let post = await Post.findById(id)
       .populate("author", "name profilePicture city")
-      .populate("comments.author", "name profilePicture city");
+      .populate("group", "name")
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" });
+    post = post ? post.toObject() : null;
+    if (post) await populateRepliesAuthors(post.comments);
     if (!post) return res.status(404).json({ message: "Post not found" });
     res.json(post);
   } catch (err) {
@@ -85,9 +136,13 @@ export const toggleLike = async (req, res) => {
       }
     }
     await post.save();
-    const populated = await Post.findById(id)
+    let populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
-      .lean();
+      .populate("group", "name")
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" });
+    populated = populated ? populated.toObject() : null;
+    if (populated) await populateRepliesAuthors(populated.comments);
     res.json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to like post", error: err.message });
@@ -98,30 +153,61 @@ export const addComment = async (req, res) => {
   try {
     const userId = req.user?.id;
     const { id } = req.params;
-    const { text } = req.body;
+    const { text, parentCommentId } = req.body;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
     if (!text || text.trim().length === 0) {
       return res.status(400).json({ message: "Comment text is required" });
     }
-
-    const post = await Post.findById(id);
+    const post = await Post.findById(id).populate("author");
     if (!post) return res.status(404).json({ message: "Post not found" });
-    post.comments.push({ author: userId, text });
+    // Comment privacy enforcement
+    if (post.privacy === 'friends') {
+      // Only author or friends can comment
+      if ((post.author._id.toString() !== userId) &&
+        !(post.author.friends && post.author.friends.map(x=>x.toString()).includes(userId))) {
+        return res.status(403).json({ message: 'Only friends can comment on this post.' });
+      }
+    }
+    // end privacy guard
+    const newComment = { author: userId, text };
+    if (parentCommentId) {
+      function addReply(comments) {
+        for (let comm of comments) {
+          if (comm._id.toString() === parentCommentId) {
+            comm.replies = comm.replies || [];
+            comm.replies.push(newComment);
+            return true;
+          }
+          if (comm.replies && comm.replies.length > 0) {
+            if (addReply(comm.replies)) return true;
+          }
+        }
+        return false;
+      }
+      if (!addReply(post.comments)) {
+        return res.status(404).json({ message: 'Parent comment not found' });
+      }
+      post.markModified("comments");
+    } else {
+      post.comments.push(newComment);
+      post.markModified("comments");
+    }
     await post.save();
-
-    if (post.author.toString() !== userId) {
+    if (post.author._id.toString() !== userId) {
       await Notification.create({
-        recipient: post.author,
+        recipient: post.author._id,
         actor: userId,
         type: "comment",
         post: post._id,
         message: "commented on your post",
       });
     }
-
-    const populated = await Post.findById(id)
+    let populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
-      .populate("comments.author", "name profilePicture city");
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" });
+    populated = populated ? populated.toObject() : null;
+    if (populated) await populateRepliesAuthors(populated.comments);
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to add comment", error: err.message });
@@ -156,5 +242,132 @@ export const sharePost = async (req, res) => {
     res.status(500).json({ message: "Failed to share post", error: err.message });
   }
 };
+
+// Update post (only author can update)
+export const updatePost = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+    const { text, place, feeling, privacy } = req.body;
+
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    if (post.author.toString() !== userId) {
+      return res.status(403).json({ message: "Only the author can update this post" });
+    }
+
+    // Update fields
+    if (text !== undefined) {
+      post.text = text;
+      // Re-extract hashtags if text changed
+      const hashtags = extractHashtags(text || "");
+      post.hashtags = hashtags;
+      // Update hashtag counts
+      for (const tag of hashtags) {
+        await Hashtag.findOneAndUpdate(
+          { tag },
+          { $inc: { count: 1 }, $set: { lastUsed: new Date() } },
+          { upsert: true }
+        );
+      }
+    }
+    if (place !== undefined) post.place = place;
+    if (feeling !== undefined) post.feeling = feeling;
+    if (privacy !== undefined) post.privacy = privacy;
+
+    await post.save();
+
+    // Populate and return updated post
+    let populated = await Post.findById(id)
+      .populate("author", "name profilePicture city")
+      .populate("group", "name")
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" });
+    
+    populated = populated ? populated.toObject() : null;
+    if (populated) await populateRepliesAuthors(populated.comments);
+
+    res.json(populated);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to update post", error: err.message });
+  }
+};
+
+// Delete post (only author can delete)
+export const deletePost = async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    const { id } = req.params;
+
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const post = await Post.findById(id);
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+
+    if (post.author.toString() !== userId) {
+      return res.status(403).json({ message: "Only the author can delete this post" });
+    }
+
+    // Decrease hashtag counts
+    if (post.hashtags && post.hashtags.length > 0) {
+      for (const tag of post.hashtags) {
+        await Hashtag.findOneAndUpdate(
+          { tag },
+          { $inc: { count: -1 } }
+        );
+      }
+    }
+
+    // Delete all notifications related to this post
+    await Notification.deleteMany({ post: id });
+
+    await Post.findByIdAndDelete(id);
+    res.json({ message: "Post deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ message: "Failed to delete post", error: err.message });
+  }
+};
+
+export const trendingHashtags = async (req, res) => {
+  try {
+    let tags = await Hashtag.find({})
+      .sort({ count: -1, lastUsed: -1 })
+      .limit(4)
+      .lean();
+
+    // Optionally filter out extremely generic tags by hand:
+    const stopwords = ["hello","test","general"];
+    tags = tags.filter(t => !stopwords.includes(t.tag));
+    res.json(tags);
+  } catch (err) {
+    res.status(500).json({ message: "Failed to fetch trending hashtags", error: err.message });
+  }
+};
+
+// Helper: recursively populate author for all replies (mongooose doesn't do >2 levels)
+async function populateRepliesAuthors(comments) {
+  for (const c of comments) {
+    if (c.replies && c.replies.length > 0) {
+      for (const r of c.replies) {
+        if (r.author && typeof r.author === 'string') {
+          // ID only, populate
+          const user = await User.findById(r.author).select('name profilePicture city');
+          if (user) r.author = user;
+        } else if (r.author && r.author?._id && !r.author?.name) {
+          const user = await User.findById(r.author._id).select('name profilePicture city');
+          if (user) r.author = user;
+        }
+      }
+      await populateRepliesAuthors(c.replies); // recurse
+    }
+  }
+}
 
 

@@ -9,7 +9,12 @@ import {
     updateMe,
     verifyOtp,
     resendOtp,
-    logout
+    logout,
+    sendFriendRequest,
+    acceptFriendRequest,
+    declineFriendRequest,
+    cancelFriendRequest,
+    unfriend
 } from '../controller/userController.js'
 import { verifyToken } from '../middleware/auth.js';
 import Upload from '../middleware/upload.js'
@@ -26,6 +31,11 @@ router.get('/top-creators', verifyToken, (await import('../controller/userContro
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/logout', logout);
+router.post('/friend/send', verifyToken, sendFriendRequest);
+router.post('/friend/accept', verifyToken, acceptFriendRequest);
+router.post('/friend/decline', verifyToken, declineFriendRequest);
+router.post('/friend/cancel', verifyToken, cancelFriendRequest);
+router.post('/friend/unfriend', verifyToken, unfriend);
 router.get('/:id', verifyToken, getUserById);
 router.get('/show-all-users',verifyToken, getAllUsers)
 

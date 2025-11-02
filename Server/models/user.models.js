@@ -54,6 +54,10 @@ const userSchema = new mongoose.Schema(
     otpExpiry: {
       type: Date,
     },
+
+    sentRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // user IDs to whom this user has sent a friend request
+    friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // user IDs who sent a friend request to this user
+    friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // confirmed friends
   },
 
   {

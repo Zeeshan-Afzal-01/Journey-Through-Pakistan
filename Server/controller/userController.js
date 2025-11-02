@@ -3,6 +3,7 @@ import Post from "../models/post.models.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import sendOTP from "../utils/sendOTP.js";
+import Notification from "../models/notification.models.js";
 
 export const registerUser = async (req, res) => {
   try {
@@ -316,5 +317,124 @@ export const resendOtp = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Error resending OTP", err });
+  }
+};
+
+// FRIEND REQUEST SYSTEM
+export const sendFriendRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { targetUserId } = req.body;
+    if (!userId || !targetUserId) return res.status(400).json({ message: 'User IDs required.' });
+    if (userId === targetUserId) return res.status(400).json({ message: 'Cannot send request to self.' });
+    const user = await User.findById(userId);
+    const target = await User.findById(targetUserId);
+    if (!user || !target) return res.status(404).json({ message: 'User(s) not found.' });
+    if (user.friends.includes(targetUserId)) return res.status(400).json({ message: 'Already friends.' });
+    if (user.sentRequests.includes(targetUserId)) return res.status(400).json({ message: 'Already sent request.' });
+    if (user.friendRequests.includes(targetUserId)) return res.status(400).json({ message: 'That user already sent you a request.' });
+
+    user.sentRequests.push(targetUserId);
+    target.friendRequests.push(userId);
+    await user.save();
+    await target.save();
+
+    // Notify recipient about friend request
+    await Notification.create({
+      recipient: targetUserId,
+      actor: userId,
+      type: 'friend_request',
+      message: 'sent you a friend request'
+    });
+
+    return res.json({ message: 'Friend request sent.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Send request error', err });
+  }
+};
+export const acceptFriendRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { requestUserId } = req.body;
+    if (!userId || !requestUserId) return res.status(400).json({ message: 'User IDs required.' });
+    const user = await User.findById(userId);
+    const requestUser = await User.findById(requestUserId);
+    if (!user || !requestUser) return res.status(404).json({ message: 'User(s) not found.' });
+    if (!user.friendRequests.includes(requestUserId)) return res.status(400).json({ message: 'No such friend request.' });
+
+    user.friendRequests = user.friendRequests.filter(u => u.toString() !== requestUserId);
+    requestUser.sentRequests = requestUser.sentRequests.filter(u => u.toString() !== userId);
+    user.friends.push(requestUserId);
+    requestUser.friends.push(userId);
+    await user.save();
+    await requestUser.save();
+
+    // Notify the requester that their request was accepted
+    await Notification.create({
+      recipient: requestUserId,
+      actor: userId,
+      type: 'friend_accept',
+      message: 'accepted your friend request'
+    });
+
+    return res.json({ message: 'Friend request accepted.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Accept request error', err });
+  }
+};
+export const declineFriendRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { requestUserId } = req.body;
+    if (!userId || !requestUserId) return res.status(400).json({ message: 'User IDs required.' });
+    const user = await User.findById(userId);
+    const requestUser = await User.findById(requestUserId);
+    if (!user || !requestUser) return res.status(404).json({ message: 'User(s) not found.' });
+    if (!user.friendRequests.includes(requestUserId)) return res.status(400).json({ message: 'No such friend request.' });
+
+    user.friendRequests = user.friendRequests.filter(u => u.toString() !== requestUserId);
+    requestUser.sentRequests = requestUser.sentRequests.filter(u => u.toString() !== userId);
+    await user.save();
+    await requestUser.save();
+    return res.json({ message: 'Friend request declined.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Decline request error', err });
+  }
+};
+export const cancelFriendRequest = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { targetUserId } = req.body;
+    if (!userId || !targetUserId) return res.status(400).json({ message: 'User IDs required.' });
+    const user = await User.findById(userId);
+    const target = await User.findById(targetUserId);
+    if (!user || !target) return res.status(404).json({ message: 'User(s) not found.' });
+    if (!user.sentRequests.includes(targetUserId)) return res.status(400).json({ message: 'No such sent request.' });
+
+    user.sentRequests = user.sentRequests.filter(u => u.toString() !== targetUserId);
+    target.friendRequests = target.friendRequests.filter(u => u.toString() !== userId);
+    await user.save();
+    await target.save();
+    return res.json({ message: 'Canceled friend request.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Cancel request error', err });
+  }
+};
+export const unfriend = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { targetUserId } = req.body;
+    if (!userId || !targetUserId) return res.status(400).json({ message: 'User IDs required.' });
+    const user = await User.findById(userId);
+    const friend = await User.findById(targetUserId);
+    if (!user || !friend) return res.status(404).json({ message: 'User(s) not found.' });
+    if (!user.friends.includes(targetUserId)) return res.status(400).json({ message: 'Not friends.' });
+    user.friends = user.friends.filter(u => u.toString() !== targetUserId);
+    friend.friends = friend.friends.filter(u => u.toString() !== userId);
+    await user.save();
+    await friend.save();
+    return res.json({ message: 'Unfriended.' });
+  } catch (err) {
+    res.status(500).json({ message: 'Unfriend error', err });
   }
 };

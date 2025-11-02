@@ -1,12 +1,14 @@
 import mongoose from "mongoose";
 
-const commentSchema = new mongoose.Schema(
+let commentSchema = new mongoose.Schema(
   {
     author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     text: { type: String, required: true },
+    // Will add replies after definition for recursion!
   },
   { timestamps: true }
 );
+commentSchema.add({ replies: [commentSchema] });
 
 const postSchema = new mongoose.Schema(
   {
@@ -18,6 +20,9 @@ const postSchema = new mongoose.Schema(
     likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
     comments: [commentSchema],
     shares: { type: Number, default: 0 },
+    privacy: { type: String, enum: ["public", "friends"], default: "public" },
+    group: { type: mongoose.Schema.Types.ObjectId, ref: "Group" }, // Optional: if post belongs to a group
+
   },
   { timestamps: true }
 );

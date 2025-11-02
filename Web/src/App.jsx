@@ -16,6 +16,7 @@ import PostDetail from "./pages/PostDetail";
 import Chats from "./pages/Chats";
 import Notifications from "./pages/Notifications";
 import Search from "./pages/Search";
+import GroupDetail from "./pages/GroupDetail";
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -161,6 +162,19 @@ function App() {
                   <Sidebar />
                   <main className="jtp-content p-3">
                     <Search />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/group/:groupId"
+            element={
+              <ProtectedRoute>
+                <div className="jtp-layout">
+                  <Sidebar />
+                  <main className="jtp-content p-3">
+                    <GroupDetail />
                   </main>
                 </div>
               </ProtectedRoute>

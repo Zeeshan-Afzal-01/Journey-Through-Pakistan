@@ -1,14 +1,20 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser } from "react-icons/fi";
+import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser, FiMoreHorizontal, FiEdit2, FiTrash2, FiLock, FiGlobe, FiTag } from "react-icons/fi";
 import "../assests/css/community.css";
-import { listPosts, createPost, toggleLike, addComment } from "../api/postsApi.jsx";
+import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost } from "../api/postsApi.jsx";
 import { getTopCreators } from "../api/authApi.jsx";
+import { sendFriendRequest as apiSendFriendRequest } from "../api/authApi.jsx";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { listStatuses as apiListStatuses, createStatus as apiCreateStatus, markStatusViewed as apiMarkViewed } from "../api/statusesApi.jsx";
+import { acceptFriendRequest as apiAcceptFriendRequest, declineFriendRequest as apiDeclineFriendRequest } from "../api/authApi.jsx";
+import { trendingHashtags as apiTrendingHashtags } from '../api/postsApi.jsx';
+import { PostCardSkeleton, UserCardSkeleton, HashtagSkeleton, StatusBarSkeleton, GroupCardSkeleton } from '../components/SkeletonLoader.jsx';
+import { listGroups, createGroup, joinGroup, leaveGroup, getGroupPosts } from '../api/groupsApi.jsx';
+import "../assests/css/skeleton.css";
 
-function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal }) {
+function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal, onGroups = [] }) {
   const [showModal, setShowModal] = useState(false);
 
   return (
@@ -55,13 +61,13 @@ function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal
       </div>
 
       {showModal && (
-        <CreatePostModal onPost={onPost} currentUser={currentUser} onClose={() => setShowModal(false)} />
+        <CreatePostModal onPost={onPost} currentUser={currentUser} onClose={() => setShowModal(false)} groups={onGroups} />
       )}
     </>
   );
 }
 
-function CreatePostModal({ onPost, currentUser, onClose }) {
+function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGroup = null }) {
   const [text, setText] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [file, setFile] = useState(null);
@@ -71,7 +77,7 @@ function CreatePostModal({ onPost, currentUser, onClose }) {
   const [showPlace, setShowPlace] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
-  const [privacy, setPrivacy] = useState("Public");
+  const [privacy, setPrivacy] = useState("public");
   const [showGifModal, setShowGifModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [showTagModal, setShowTagModal] = useState(false);
@@ -79,6 +85,7 @@ function CreatePostModal({ onPost, currentUser, onClose }) {
   const [tagSearch, setTagSearch] = useState("");
   const [selectedGif, setSelectedGif] = useState("");
   const [taggedUsers, setTaggedUsers] = useState([]);
+  const [postToGroup, setPostToGroup] = useState(selectedGroup || "");
 
   const MAX_LEN = 500;
   const canPost = (text.trim().length > 0 || file || imageUrl || selectedGif) && !submitting;
@@ -127,8 +134,8 @@ function CreatePostModal({ onPost, currentUser, onClose }) {
     try {
       const finalImageUrl = selectedGif || imageUrl;
       const payload = file
-        ? { text, file, place: place || undefined, feeling: feeling || undefined }
-        : { text, imageUrl: finalImageUrl || undefined, place: place || undefined, feeling: feeling || undefined };
+        ? { text, file, place: place || undefined, feeling: feeling || undefined, privacy, group: postToGroup || undefined }
+        : { text, imageUrl: finalImageUrl || undefined, place: place || undefined, feeling: feeling || undefined, privacy, group: postToGroup || undefined };
       const { data } = await createPost(payload);
       onPost?.(data);
       onClose();
@@ -173,19 +180,29 @@ function CreatePostModal({ onPost, currentUser, onClose }) {
               />
               <div className="flex-grow-1">
                 <div className="fw-semibold" style={{ fontSize: "15px" }}>{currentUser?.name || "Unknown"}</div>
-                <div className="d-flex align-items-center gap-1">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="#65676b">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
-                  </svg>
+                <div className="d-flex align-items-center gap-2 flex-wrap">
+                  {groups.length > 0 && (
+                    <select 
+                      className="form-select form-select-sm border rounded" 
+                      style={{ fontSize: "13px", maxWidth: "200px" }} 
+                      value={postToGroup} 
+                      onChange={(e) => setPostToGroup(e.target.value)}
+                    >
+                      <option value="">Post to Timeline</option>
+                      {groups.map(g => (
+                        <option key={g._id} value={g._id}>{g.name}</option>
+                      ))}
+                    </select>
+                  )}
                   <select 
                     className="form-select form-select-sm border-0 p-0 bg-transparent" 
                     style={{ width: "auto", fontSize: "13px", color: "#65676b" }} 
                     value={privacy} 
                     onChange={(e) => setPrivacy(e.target.value)}
                   >
-                    <option value="Public">Public</option>
-                    <option value="Friends">Friends</option>
-                    <option value="Only me">Only me</option>
+                    <option value="public">Public</option>
+                    <option value="friends">Friends</option>
+                    <option value="only me">Only me</option>
                   </select>
                 </div>
               </div>
@@ -438,6 +455,107 @@ function CreatePostModal({ onPost, currentUser, onClose }) {
   );
 }
 
+function CreateGroupModal({ currentUser, onCreated, onClose }) {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [privacy, setPrivacy] = useState("public");
+  const [category, setCategory] = useState("");
+  const [location, setLocation] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!name.trim()) {
+      alert("Group name is required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { data } = await createGroup({ name, description, privacy, category, location });
+      onCreated?.(data);
+      onClose();
+      setName("");
+      setDescription("");
+      setPrivacy("public");
+      setCategory("");
+      setLocation("");
+    } catch (e) {
+      alert(e?.response?.data?.message || "Failed to create group");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div className="modal-dialog modal-lg">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">Create New Group</h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body">
+            <div className="mb-3">
+              <label className="form-label">Group Name *</label>
+              <input
+                type="text"
+                className="form-control"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter group name"
+              />
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Description</label>
+              <textarea
+                className="form-control"
+                rows="3"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe your group..."
+              />
+            </div>
+            <div className="row mb-3">
+              <div className="col-md-6">
+                <label className="form-label">Privacy</label>
+                <select className="form-select" value={privacy} onChange={(e) => setPrivacy(e.target.value)}>
+                  <option value="public">Public (Anyone can join)</option>
+                  <option value="private">Private (Admin approval required)</option>
+                </select>
+              </div>
+              <div className="col-md-6">
+                <label className="form-label">Category</label>
+                <input
+                  type="text"
+                  className="form-control"
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  placeholder="e.g., Travel, Food, Photography"
+                />
+              </div>
+            </div>
+            <div className="mb-3">
+              <label className="form-label">Location</label>
+              <input
+                type="text"
+                className="form-control"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="e.g., Lahore, Islamabad"
+              />
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting || !name.trim()}>
+              {submitting ? "Creating..." : "Create Group"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CreateStatusModal({ currentUser, onCreated, onClose }) {
   const [file, setFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState("");
@@ -455,12 +573,8 @@ function CreateStatusModal({ currentUser, onCreated, onClose }) {
     }
   }, [file]);
 
-  // Auto-open file chooser when modal opens and no file selected
-  useEffect(() => {
-    if (!file && fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  }, [file]);
+  // Only open file picker on modal mount (not on file select/clear)
+  // Only run once when modal mounts
 
   const handleSubmit = async () => {
     if (!file || submitting) return;
@@ -568,6 +682,18 @@ function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, current
     run();
   }, [item?._id]);
 
+  const uniqueViews = React.useMemo(() => {
+    if (!Array.isArray(item?.views)) return [];
+    const map = new Map();
+    for (const v of item.views) {
+      const id = v?._id || v?.id;
+      if (id && !map.has(id)) map.set(id, v);
+    }
+    const arr = Array.from(map.values());
+    // Show newest viewers first (assuming incoming array is chronological)
+    return arr.reverse();
+  }, [item?.views]);
+
   const goPrevItem = () => setIndex(i => Math.max(0, i - 1));
   const goNextItem = () => setIndex(i => Math.min(items.length - 1, i + 1));
   const goPrevGroup = () => onChangeGroup?.(Math.max(0, groupIndex - 1));
@@ -606,8 +732,12 @@ function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, current
 
   return (
     <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.9)" }}>
+      {/* Local CSS for a smooth slide-down animation */}
+      <style>{`
+        @keyframes slideDownFade { from { transform: translateY(-12px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+      `}</style>
       <div className="modal-dialog modal-dialog-centered modal-lg">
-        <div className="modal-content bg-dark text-white" style={{ overflow:'hidden', borderRadius: 16 }}>
+        <div className="modal-content bg-dark text-white" style={{ overflow:'hidden', borderRadius: 16, position:'relative' }}>
           <div className="modal-header border-0">
             <div className="d-flex align-items-center gap-2">
               <img className="rounded-circle" style={{ width:32, height:32, objectFit:'cover' }} src={group?.user?.profilePicture ? `http://localhost:3000/${group.user.profilePicture}` : '/default-avatar.png'} />
@@ -633,24 +763,24 @@ function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, current
             <button className="btn btn-sm btn-outline-light position-absolute" style={{ left:12, top:'50%' }} onClick={index>0?goPrevItem:goPrevGroup} disabled={groupIndex===0 && index===0}>‹</button>
             <button className="btn btn-sm btn-outline-light position-absolute" style={{ right:12, top:'50%' }} onClick={index<items.length-1?goNextItem:goNextGroup} disabled={groupIndex===groups.length-1 && index===items.length-1}>›</button>
           </div>
-          <div className="modal-footer flex-column align-items-stretch border-0 w-100" style={{ gap: '8px' }}>
+          <div className="modal-footer flex-column align-items-stretch border-0 w-100" style={{ gap: '8px', position:'relative' }}>
             <div className="d-flex justify-content-between align-items-center w-100">
               <div className="text-muted small">{items.length ? `${index+1} / ${items.length}` : 'No items'}</div>
               <div className="d-flex align-items-center gap-2">
                 {group?.user?._id === currentUser?._id && (
                   <button className="btn btn-sm btn-outline-light" onClick={()=> setShowViewers(v=>!v)}>
-                    Viewers ({item?.views?.length || 0})
+                    Viewers ({uniqueViews.length})
                   </button>
                 )}
               </div>
             </div>
-            {group?.user?._id === currentUser?._id && showViewers && Array.isArray(item?.views) && (
-              <div className="bg-dark rounded p-2" style={{ maxHeight: '140px', overflowY: 'auto', border: '1px solid #2a2a2a' }}>
-                {item.views.length === 0 && (
+            {group?.user?._id === currentUser?._id && showViewers && (
+              <div className="bg-dark rounded p-2" style={{ position:'absolute', top: -70, right: 12, maxHeight: '150px', width:'280px', overflowY: 'auto', border: '1px solid #2a2a2a', boxShadow:'0 8px 30px rgba(0,0,0,.4)', animation:'slideDownFade 220ms ease-out', zIndex: 5 }}>
+                {uniqueViews.length === 0 && (
                   <div className="text-muted xsmall">No viewers yet</div>
                 )}
-                {item.views.map(v => (
-                  <div key={v._id} className="d-flex align-items-center gap-2 py-1">
+                {uniqueViews.map(v => (
+                  <div key={v._id || v.id} className="d-flex align-items-center gap-2 py-1">
                     <img className="rounded-circle" style={{ width:26, height:26, objectFit:'cover' }} src={v.profilePicture ? `http://localhost:3000/${v.profilePicture}` : '/default-avatar.png'} alt={v.name} />
                     <div className="small">{v.name}</div>
                   </div>
@@ -674,6 +804,7 @@ function Composer({ onPost, currentUser }) {
   const [showPlace, setShowPlace] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [previewUrl, setPreviewUrl] = useState("");
+  const [privacy, setPrivacy] = useState("Public");
 
   const MAX_LEN = 500;
 
@@ -694,8 +825,8 @@ function Composer({ onPost, currentUser }) {
     setSubmitting(true);
     try {
       const payload = file
-        ? { text, file, place: place || undefined, feeling: feeling || undefined }
-        : { text, imageUrl: imageUrl || undefined, place: place || undefined, feeling: feeling || undefined };
+        ? { text, file, place: place || undefined, feeling: feeling || undefined, privacy }
+        : { text, imageUrl: imageUrl || undefined, place: place || undefined, feeling: feeling || undefined, privacy };
       const { data } = await createPost(payload);
       onPost?.(data);
       setText("");
@@ -753,6 +884,17 @@ function Composer({ onPost, currentUser }) {
                 {feeling && <span className="small text-muted">Selected: {feeling}</span>}
               </div>
             )}
+            <div className="mb-2">
+              <label className="form-label">Privacy</label>
+              <select
+                className="form-select form-select-sm"
+                value={privacy}
+                onChange={e => setPrivacy(e.target.value)}
+              >
+                <option value="public">Public (everyone can see)</option>
+                <option value="friends">Friends Only</option>
+              </select>
+            </div>
           </div>
         </div>
       </div>
@@ -760,29 +902,139 @@ function Composer({ onPost, currentUser }) {
   );
 }
 
-function PostCard({ post, onToggleLike, onAddComment }) {
+// Add a utility to render text with clickable hashtags
+function renderWithHashtags(text, onHashtagClick) {
+  if (!text) return null;
+  const regex = /(^|\s)(#\w{2,})/g;
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+  let hasMatches = false;
+  while ((match = regex.exec(text)) !== null) {
+    hasMatches = true;
+    const [fullMatch, before, tag] = match;
+    if (match.index > lastIndex) {
+      segments.push(text.slice(lastIndex, match.index));
+    }
+    segments.push(before);
+    segments.push(<span key={match.index} style={{ color: '#2196f3', cursor: 'pointer', textDecoration: 'underline' }} onClick={() => onHashtagClick(tag.substring(1))}>{tag}</span>);
+    lastIndex = match.index + fullMatch.length;
+  }
+  if (lastIndex < text.length) {
+    segments.push(text.slice(lastIndex));
+  }
+  return hasMatches ? segments : text;
+}
+
+function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpdate, onPostDelete }) {
   const likeCount = post.likes?.length || 0;
   const commentCount = post.comments?.length || 0;
   const time = new Date(post.createdAt).toLocaleString();
   const [showComments, setShowComments] = useState(false);
   const [commentText, setCommentText] = useState("");
-  const submitting = false;
+  const [replyingId, setReplyingId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [commentError, setCommentError] = useState("");
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const isGif = post.imageUrl && /\.gif($|\?)/i.test(post.imageUrl);
+  const { user: currentUser } = useAuth();
+  const hasLiked = post.likes && currentUser && post.likes.some(u => (u._id || u) === (currentUser._id || currentUser.id));
+  const isAuthor = currentUser && (post.author?._id === currentUser._id || post.author?._id === currentUser.id);
+
+  // Local handler for comment so per-card submitting is local not global
+  const handleLocalAddComment = async (p, text, reset, parentCommentId) => {
+    setCommentError("");
+    if (!text.trim()) return;
+    setSubmitting(true);
+    try {
+      console.log('handleLocalAddComment called', { postId: p._id, text, parentCommentId });
+      const { data } = await onAddComment(p, text, reset, parentCommentId, { setSubmitting, setCommentError });
+      // onAddComment will update global posts for instant UI
+    } catch (e) {
+      setCommentError(e?.response?.data?.message || "Failed to send comment");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!window.confirm("Are you sure you want to delete this post?")) return;
+    try {
+      await deletePost(post._id);
+      onPostDelete?.(post._id);
+    } catch (err) {
+      // Error will be handled by parent component notification system
+      console.error(err?.response?.data?.message || "Failed to delete post");
+    }
+  };
+
+  const handleEdit = () => {
+    setShowEditModal(true);
+    setShowOptionsMenu(false);
+  };
+
   return (
     <div className="card shadow-sm mb-3 post-card">
       <div className="card-body">
-        <div className="d-flex align-items-center gap-2 mb-2">
-        <img
-  className="rounded-circle comm-avatar"
-  src={post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "/default-avatar.png"}
-  alt={post.author?.name || "User"}
-/>
-          <div>
+        <div className="d-flex align-items-center gap-2 mb-2 position-relative">
+          <img className="rounded-circle comm-avatar" src={post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "/default-avatar.png"} alt={post.author?.name || "User"} />
+          <div className="flex-grow-1">
             <div className="fw-semibold small">{post.author?.name || "Unknown"}</div>
-            <div className="text-muted xsmall">{time} • {post.author?.city || "Pakistan"}</div>
+            <div className="text-muted xsmall">
+              {time} • {post.author?.city || "Pakistan"}
+              {post.group && (
+                <span className="ms-2">
+                  <FiUsers size={12} className="d-inline me-1" />
+                  <Link to={`/group/${post.group._id || post.group}`} className="text-primary text-decoration-none">
+                    {typeof post.group === 'object' ? post.group.name : 'Group'}
+                  </Link>
+                </span>
+              )}
+            </div>
           </div>
+          {isAuthor && (
+            <div className="position-relative">
+              <button 
+                className="btn btn-link p-0 text-muted"
+                onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                style={{ fontSize: '20px', lineHeight: '1' }}
+              >
+                <FiMoreHorizontal />
+              </button>
+              {showOptionsMenu && (
+                <>
+                  <div 
+                    className="position-fixed top-0 start-0 w-100 h-100" 
+                    style={{ zIndex: 1040 }}
+                    onClick={() => setShowOptionsMenu(false)}
+                  ></div>
+                  <div 
+                    className="position-absolute bg-white border rounded shadow-sm"
+                    style={{ right: 0, top: '100%', zIndex: 1050, minWidth: '160px', marginTop: '4px' }}
+                  >
+                    <button 
+                      className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2"
+                      onClick={handleEdit}
+                      style={{ fontSize: '14px' }}
+                    >
+                      <FiEdit2 size={16} /> Edit Post
+                    </button>
+                    <button 
+                      className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-danger"
+                      onClick={handleDelete}
+                      style={{ fontSize: '14px' }}
+                    >
+                      <FiTrash2 size={16} /> Delete Post
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
-        <p className="mb-2">{post.text}</p>
+        <p className="mb-2">{renderWithHashtags(post.text, onHashtagClick)}</p>
         {post.imageUrl && (
           isGif ? (
             <div className="rounded overflow-hidden mb-2">
@@ -805,41 +1057,380 @@ function PostCard({ post, onToggleLike, onAddComment }) {
           </div>
         )}
         <div className="d-flex gap-3 text-muted small">
-          <button type="button" onClick={()=>onToggleLike?.(post)} className="btn btn-link p-0 text-decoration-none text-muted d-inline-flex align-items-center gap-1"><FiHeart/> {likeCount}</button>
+          <button type="button" onClick={()=>onToggleLike?.(post)} className="btn btn-link p-0 text-decoration-none d-inline-flex align-items-center gap-1">
+            <FiHeart color={hasLiked ? '#dc3545' : undefined} fill={hasLiked ? '#dc3545' : 'none'} style={{fontWeight: hasLiked ? 'bold' : 'normal'}}/>{' '}{likeCount}
+          </button>
           <button type="button" onClick={()=>setShowComments(v=>!v)} className="btn btn-link p-0 text-decoration-none text-muted d-inline-flex align-items-center gap-1"><FiMessageSquare/> {commentCount}</button>
           <span className="ms-auto d-inline-flex align-items-center gap-1"><FiBookmark/> Save</span>
         </div>
         {showComments && (
           <div className="mt-3">
             <div className="d-flex flex-column gap-2">
-              {(post.comments || []).map((c) => (
-                <div key={c._id} className="d-flex align-items-start gap-2">
-                  <img className="rounded-circle" src={c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : '/default-avatar.png'} alt={c.author?.name || 'User'} style={{ width: 28, height: 28, objectFit: 'cover' }} />
-                  <div className="bg-light rounded px-2 py-1 flex-grow-1">
-                    <div className="small"><span className="fw-semibold">{c.author?.name || 'User'}</span> <span className="text-muted">{new Date(c.createdAt).toLocaleString?.() || ''}</span></div>
-                    <div className="small">{c.text}</div>
-                  </div>
-                </div>
-              ))}
+              <CommentThread
+                comments={post.comments}
+                onReply={cid => { setReplyingId(cid); setReplyText(''); }}
+                replyingId={replyingId}
+                replyText={replyText}
+                onReplyText={e => setReplyText(e.target.value)}
+                onSubmitReply={cid => handleLocalAddComment(post, replyText, () => { setReplyText(''); setReplyingId(null); }, cid)}
+                submitting={submitting}
+              />
+              {/* Top-level comment box */}
               <div className="d-flex align-items-center gap-2">
-                <input className="form-control form-control-sm" placeholder="Write a comment..." value={commentText} onChange={(e)=>setCommentText(e.target.value)} onKeyDown={(e)=>{ if(e.key==='Enter'){ onAddComment?.(post, commentText, () => setCommentText('')); } }} />
-                <button disabled={!commentText.trim() || submitting} className="btn btn-primary btn-sm" onClick={()=> onAddComment?.(post, commentText, () => setCommentText(''))}>Comment</button>
+                <input className="form-control form-control-sm" placeholder="Write a comment..." value={commentText} onChange={e=>setCommentText(e.target.value)} onKeyDown={e=>{ if(e.key==='Enter'){ handleLocalAddComment(post, commentText, () => setCommentText('')); } }} />
+                <button disabled={!commentText.trim()||submitting} className="btn btn-primary btn-sm" onClick={()=>handleLocalAddComment(post, commentText, () => setCommentText(''))}>Comment</button>
               </div>
+              {commentError && <div className="text-danger small">{commentError}</div>}
             </div>
           </div>
         )}
+      </div>
+      {showEditModal && (
+        <EditPostModal
+          post={post}
+          onClose={() => setShowEditModal(false)}
+          onUpdate={async (updatedData) => {
+            try {
+              const { data } = await updatePost(post._id, updatedData);
+              onPostUpdate?.(data);
+              setShowEditModal(false);
+            } catch (err) {
+              // Error handled by notification system
+              console.error(err?.response?.data?.message || "Failed to update post");
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditPostModal({ post, onClose, onUpdate }) {
+  const [text, setText] = useState(post.text || "");
+  const [place, setPlace] = useState(post.place || "");
+  const [feeling, setFeeling] = useState(post.feeling || "");
+  const [privacy, setPrivacy] = useState(post.privacy || "public");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!text.trim() && !post.imageUrl) return;
+    setSubmitting(true);
+    try {
+      await onUpdate({ text, place, feeling, privacy });
+    } catch (err) {
+      // Error handled by parent
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+      <div className="modal-dialog">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">Edit Post</h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body">
+            <textarea
+              className="form-control mb-3"
+              rows="4"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              placeholder="What's on your mind?"
+            />
+            {post.imageUrl && (
+              <div className="mb-3">
+                <img 
+                  src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} 
+                  alt="post" 
+                  className="img-fluid rounded"
+                />
+                <small className="text-muted d-block mt-1">Image cannot be changed</small>
+              </div>
+            )}
+            <div className="row g-2 mb-3">
+              <div className="col-md-6">
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Place"
+                  value={place}
+                  onChange={(e) => setPlace(e.target.value)}
+                />
+              </div>
+              <div className="col-md-6">
+                <input
+                  type="text"
+                  className="form-control form-control-sm"
+                  placeholder="Feeling"
+                  value={feeling}
+                  onChange={(e) => setFeeling(e.target.value)}
+                />
+              </div>
+            </div>
+            <select 
+              className="form-select form-select-sm" 
+              value={privacy}
+              onChange={(e) => setPrivacy(e.target.value)}
+            >
+              <option value="public">Public</option>
+              <option value="friends">Friends Only</option>
+            </select>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+            <button 
+              type="button" 
+              className="btn btn-primary" 
+              onClick={handleSubmit}
+              disabled={(!text.trim() && !post.imageUrl) || submitting}
+            >
+              {submitting ? 'Saving...' : 'Save Changes'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GroupPreviewModal({ group, user, onClose, onJoinRequest, isJoining }) {
+  const isMember = user?._id && (group?.members?.some(m => (m._id || m) === user._id) || group?.admin?._id === user._id || (typeof group?.admin === 'string' && group?.admin === user._id));
+  const isAdmin = user?._id && (group?.admin?._id === user._id || (typeof group?.admin === 'string' && group?.admin === user._id));
+  const hasRequested = user?._id && group?.pendingRequests?.some(r => (r._id || r) === user._id);
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1050 }}>
+      <div className="modal-dialog modal-lg">
+        <div className="modal-content">
+          <div className="modal-header border-0 pb-0">
+            <h5 className="modal-title">Group Preview</h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body p-0">
+            {/* Cover Image */}
+            <div 
+              className="position-relative"
+              style={{
+                height: '200px',
+                backgroundImage: group.coverImage 
+                  ? `url(http://localhost:3000/${group.coverImage})` 
+                  : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            >
+              <div className="position-absolute bottom-0 start-0 end-0 p-3" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 100%)' }}>
+                <div className="d-flex align-items-center gap-3 text-white">
+                  <div 
+                    className="rounded d-flex align-items-center justify-content-center bg-white"
+                    style={{ width: '80px', height: '80px' }}
+                  >
+                    {group.groupPhoto ? (
+                      <img 
+                        src={`http://localhost:3000/${group.groupPhoto}`} 
+                        alt={group.name}
+                        className="rounded"
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      <FiUsers size={40} className="text-primary" />
+                    )}
+                  </div>
+                  <div>
+                    <h4 className="mb-0">{group.name}</h4>
+                    <div className="d-flex align-items-center gap-2 mt-1">
+                      {group.privacy === 'public' ? <FiGlobe size={16} /> : <FiLock size={16} />}
+                      <span className="small">{group.privacy === 'public' ? 'Public' : 'Private'} Group</span>
+                      <span className="small">•</span>
+                      <span className="small"><FiUsers size={14} /> {group.members?.length || 0} members</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Group Details */}
+            <div className="p-4">
+              {group.description && (
+                <div className="mb-3">
+                  <h6 className="fw-bold mb-2">About</h6>
+                  <p className="text-muted small">{group.description}</p>
+                </div>
+              )}
+
+              <div className="row g-3 mb-3">
+                {group.category && (
+                  <div className="col-6">
+                    <div className="d-flex align-items-center gap-2">
+                      <FiTag size={16} className="text-muted" />
+                      <div>
+                        <div className="xsmall text-muted">Category</div>
+                        <div className="small fw-semibold">{group.category}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {group.location && (
+                  <div className="col-6">
+                    <div className="d-flex align-items-center gap-2">
+                      <FiMapPin size={16} className="text-muted" />
+                      <div>
+                        <div className="xsmall text-muted">Location</div>
+                        <div className="small fw-semibold">{group.location}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {group.rules && group.rules.length > 0 && (
+                <div className="mb-3">
+                  <h6 className="fw-bold mb-2">Group Rules</h6>
+                  <ul className="small text-muted mb-0">
+                    {group.rules.map((rule, idx) => (
+                      <li key={idx}>{rule}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {group.privacy === 'private' && !isMember && !hasRequested && (
+                <div className="alert alert-info small mb-3">
+                  <FiLock className="me-2" />
+                  This is a private group. You need to request to join.
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="modal-footer border-top">
+              {isMember || isAdmin ? (
+                <div className="w-100">
+                  {isAdmin && (
+                    <button className="btn btn-primary w-100" onClick={() => { onClose(); window.location.href = `/group/${group._id}`; }}>
+                      Manage Group
+                    </button>
+                  )}
+                  {isMember && !isAdmin && (
+                    <div className="text-center text-muted small">You are already a member of this group</div>
+                  )}
+                </div>
+              ) : (
+                <button 
+                  className="btn btn-primary w-100" 
+                  onClick={onJoinRequest}
+                  disabled={isJoining || hasRequested}
+                >
+                  {hasRequested ? 'Request Pending' : isJoining ? 'Joining...' : group.privacy === 'public' ? 'Join Group' : 'Request to Join'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// COMMENT RENDERING HELPERS
+function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, onSubmitReply, submitting }) {
+  if (!comments) return null;
+  return (
+    <div className="d-flex flex-column gap-2 ms-4">
+      {comments.map((c) => (
+        <div key={c._id} className="mb-2">
+          <div className="d-flex align-items-start gap-2">
+            <img className="rounded-circle" src={c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : '/default-avatar.png'} alt={c.author?.name || 'User'} style={{ width: 28, height: 28, objectFit: 'cover' }} />
+            <div className="bg-light rounded px-2 py-1 flex-grow-1">
+              <div className="small"><span className="fw-semibold">{c.author?.name || 'User'}</span> <span className="text-muted">{new Date(c.createdAt).toLocaleString?.() || ''}</span></div>
+              <div className="small">{c.text}</div>
+              <button className="btn btn-link btn-sm p-0" style={{fontSize:'0.9em'}} onClick={()=>onReply(c._id)}>Reply</button>
+              {replyingId === c._id && (
+                <div className="d-flex align-items-center gap-2 mt-1">
+                  <input className="form-control form-control-sm" style={{maxWidth:180}} placeholder="Write a reply..." value={replyText} onChange={onReplyText} onKeyDown={(e)=>{ if(e.key==='Enter')onSubmitReply(c._id); }} />
+                  <button disabled={!replyText.trim()||submitting} className="btn btn-primary btn-sm" onClick={()=>onSubmitReply(c._id)}>Reply</button>
+                </div>
+              )}
+            </div>
+          </div>
+          {c.replies && c.replies.length > 0 && (
+            <CommentThread comments={c.replies} onReply={onReply} replyingId={replyingId} replyText={replyText} onReplyText={onReplyText} onSubmitReply={onSubmitReply} submitting={submitting}/>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function NotificationsCenter({ notifications, onClose, navigate, setNotifications, user, setUser }) {
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
+      <div className="modal-dialog modal-dialog-scrollable modal-lg">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">Notifications</h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body">
+            {notifications.length === 0 && <div className="text-muted small">No notifications</div>}
+            <div className="d-flex flex-column gap-2">
+              {notifications.map(n => (
+                <div key={n._id} className="d-flex align-items-start gap-2 border rounded p-2">
+                  <img className="rounded-circle" style={{ width: 36, height: 36, objectFit:'cover', cursor:'pointer' }}
+                       onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}
+                       src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
+                  <div className="small flex-grow-1" style={{cursor:'pointer'}} onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}>
+                    <span className="fw-semibold">{n.actor?.name || 'Someone'}</span> {n.message}
+                    <div className="text-muted xsmall">{new Date(n.createdAt).toLocaleString?.() || ''}</div>
+                  </div>
+                  {n.type === 'friend_request' && (
+                    <div className="d-flex gap-1">
+                      <button className="btn btn-sm btn-success"
+                        onClick={async()=>{
+                          try {
+                            await apiAcceptFriendRequest(n.actor?._id || n.actor);
+                            if (typeof setUser === 'function') {
+                              setUser(prev => prev ? { ...prev, friends: Array.from(new Set([...(prev.friends||[]), (n.actor?._id || n.actor)])), friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
+                            }
+                            setNotifications(old => old.filter(x => x._id !== n._id));
+                          } catch {}
+                        }}>Approve</button>
+                      <button className="btn btn-sm btn-outline-secondary"
+                        onClick={async()=>{
+                          try {
+                            await apiDeclineFriendRequest(n.actor?._id || n.actor);
+                            if (typeof setUser === 'function') {
+                              setUser(prev => prev ? { ...prev, friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
+                            }
+                            setNotifications(old => old.filter(x => x._id !== n._id));
+                          } catch {}
+                        }}>Reject</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button className="btn btn-secondary" onClick={onClose}>Close</button>
+          </div>
+        </div>
       </div>
     </div>
   );
 }
 
 export default function Community() {
-  const { user } = useAuth();
+  const { user, setUser } = useAuth();
   const navigate = useNavigate();
   const [posts, setPosts] = useState([]);
   const [statuses, setStatuses] = useState([]);
   const [showStatusModal, setShowStatusModal] = useState(false);
-  const groups = useMemo(() => {
+  const [showNotificationsCenter, setShowNotificationsCenter] = useState(false);
+  const statusGroups = useMemo(() => {
     const map = new Map();
     statuses.forEach(s => {
       const key = s.author?._id || 'unknown';
@@ -857,6 +1448,21 @@ export default function Community() {
   const [fabBellOpen, setFabBellOpen] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [replyingId, setReplyingId] = useState(null);
+  const [replyText, setReplyText] = useState("");
+  const [commentError, setCommentError] = useState("");
+  const [trendingTags, setTrendingTags] = useState([]);
+  const [loadingTrendingTags, setLoadingTrendingTags] = useState(true);
+  const [loadingTopCreators, setLoadingTopCreators] = useState(true);
+  const [loadingStatuses, setLoadingStatuses] = useState(true);
+  const [hashtagFilter, setHashtagFilter] = useState("");
+  const [groups, setGroups] = useState([]);
+  const [myGroups, setMyGroups] = useState([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState(null);
+  const [showGroupPreview, setShowGroupPreview] = useState(false);
+  const [selectedGroupForPreview, setSelectedGroupForPreview] = useState(null);
 
   useEffect(() => {
     let mounted = true;
@@ -877,17 +1483,25 @@ export default function Community() {
   useEffect(() => {
     (async () => {
       try {
+        setLoadingStatuses(true);
         const res = await apiListStatuses();
         setStatuses(Array.isArray(res.data) ? res.data : []);
       } catch {}
+      finally {
+        setLoadingStatuses(false);
+      }
     })();
   }, []);
   useEffect(() => {
     (async () => {
       try {
+        setLoadingTopCreators(true);
         const { data } = await getTopCreators();
         setTopCreators(data || []);
       } catch {}
+      finally {
+        setLoadingTopCreators(false);
+      }
     })();
   }, []);
 
@@ -902,6 +1516,45 @@ export default function Community() {
     })();
   }, []);
 
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoadingTrendingTags(true);
+        const res = await apiTrendingHashtags();
+        setTrendingTags(Array.isArray(res.data) ? res.data : []);
+      } catch {}
+      finally {
+        setLoadingTrendingTags(false);
+      }
+    })();
+  }, []);
+
+  // Load groups
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoadingGroups(true);
+        const [allGroups, myGroupsRes] = await Promise.all([
+          listGroups(),
+          listGroups().then(() => ({ data: [] })).catch(() => ({ data: [] })), // Will use getMyGroups later
+        ]);
+        setGroups(Array.isArray(allGroups.data) ? allGroups.data : []);
+        // For now, filter groups where user is a member
+        if (user?._id) {
+          const myGroupsList = allGroups.data?.filter(g => 
+            g.members?.some(m => (m._id || m) === user._id) || 
+            g.admin?._id === user._id || 
+            (typeof g.admin === 'string' && g.admin === user._id)
+          ) || [];
+          setMyGroups(myGroupsList);
+        }
+      } catch {}
+      finally {
+        setLoadingGroups(false);
+      }
+    })();
+  }, [user]);
+
   const handlePrependPost = (p) => {
     setPosts((old) => [p, ...old]);
   };
@@ -913,12 +1566,19 @@ export default function Community() {
     } catch {}
   };
 
-  const handleAddComment = async (post, text, done) => {
+  // In Community, update handleAddComment to return data so PostCard gets response
+  const handleAddComment = async (post, text, reset, parentCommentId, helpers = {}) => {
+    // This function is now ONLY called by PostCard, which has its own state. Manage errors/submitting there.
+    if (!text.trim()) return;
     try {
-      const { data } = await addComment(post._id, text.trim());
-      setPosts((old) => old.map((x) => (x._id === data._id ? data : x)));
-      if (done) done();
-    } catch {}
+      const { data } = await addComment(post._id, text, parentCommentId);
+      setPosts((old) => old.map(x => (x._id === data._id ? data : x)));
+      reset && reset();
+      return { data };
+    } catch (e) {
+      if (helpers.setCommentError) helpers.setCommentError(e?.response?.data?.message || "Failed to send comment");
+      throw e;
+    }
   };
 
   const people = [
@@ -939,29 +1599,63 @@ export default function Community() {
           <div className="card shadow-sm mb-3">
             <div className="card-body">
               <div className="fw-bold mb-2 d-flex align-items-center gap-2"><FiTrendingUp/> Trending Topics</div>
-              <div className="d-flex flex-wrap gap-2">
-                {topics.map(t => (
-                  <span key={t} className="badge bg-light text-dark border fw-normal px-3 py-2">#{t}</span>
-                ))}
-              </div>
+              {loadingTrendingTags ? (
+                <HashtagSkeleton />
+              ) : (
+                <>
+                  <div className="d-flex flex-wrap gap-2">
+                    {trendingTags.map(t => (
+                      <span key={t.tag} role="button" tabIndex={0} style={{ cursor: "pointer", background: hashtagFilter === t.tag ? "#17a2b8" : undefined, color: hashtagFilter === t.tag ? "#fff" : undefined }} onClick={()=>setHashtagFilter(t.tag)} className="badge bg-light text-dark border fw-normal px-3 py-2">#{t.tag}</span>
+                    ))}
+                  </div>
+                  {hashtagFilter && <button className="btn btn-sm btn-link px-0 ms-1 mt-1" onClick={()=>setHashtagFilter("")}>Clear hashtag filter</button>}
+                </>
+              )}
             </div>
           </div>
 
           <div className="card shadow-sm">
             <div className="card-body">
               <div className="fw-bold mb-2 d-flex align-items-center gap-2"><FiUsers/> People to follow</div>
-              <div className="d-flex flex-column gap-2">
-                {topCreators.map(tc => (
-                  <div key={tc.user?._id} className="d-flex align-items-center gap-2">
-                    <img className="rounded-circle comm-avatar" src={tc.user?.profilePicture ? `http://localhost:3000/${tc.user.profilePicture}` : '/default-avatar.png'} alt={tc.user?.name || 'User'} />
-                    <div className="flex-grow-1">
-                      <div className="small fw-semibold">{tc.user?.name}</div>
-                      <div className="xsmall text-muted">{tc.totalLikes} likes • {tc.posts} posts</div>
+              {loadingTopCreators ? (
+                <div className="d-flex flex-column gap-2">
+                  {[1, 2, 3].map(i => <UserCardSkeleton key={i} />)}
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  {topCreators.map(tc => {
+                  const uid = tc.user?._id;
+                  const isSelf = user?._id === uid;
+                  const isFriend = Boolean(user?.friends?.includes(uid));
+                  const isRequested = Boolean(user?.sentRequests?.includes(uid));
+                  const handleAddFriend = async () => {
+                    try {
+                      await apiSendFriendRequest(uid);
+                      if (typeof setUser === 'function') {
+                        setUser(prev => prev ? { ...prev, sentRequests: Array.from(new Set([...(prev.sentRequests||[]), uid])) } : prev);
+                      }
+                    } catch {}
+                  };
+                  const openProfile = () => navigate(`/profile?userId=${uid}`);
+                  return (
+                    <div key={uid} className="d-flex align-items-center gap-2">
+                      <img onClick={openProfile} style={{cursor:'pointer'}} className="rounded-circle comm-avatar" src={tc.user?.profilePicture ? `http://localhost:3000/${tc.user.profilePicture}` : '/default-avatar.png'} alt={tc.user?.name || 'User'} />
+                      <div className="flex-grow-1" onClick={openProfile} style={{cursor:'pointer'}}>
+                        <div className="small fw-semibold">{tc.user?.name}{isSelf ? ' (You)' : ''}</div>
+                        <div className="xsmall text-muted">{tc.totalLikes} likes • {tc.posts} posts</div>
+                      </div>
+                      {(isFriend || isSelf) ? (
+                        <button className="btn btn-sm btn-outline-secondary" onClick={openProfile}>View</button>
+                      ) : isRequested ? (
+                        <button className="btn btn-sm btn-outline-secondary" disabled>Requested</button>
+                      ) : (
+                        <button className="btn btn-sm btn-outline-primary" onClick={handleAddFriend}>Add Friend</button>
+                      )}
                     </div>
-                    <button className="btn btn-sm btn-outline-primary">Follow</button>
-                  </div>
-                ))}
-              </div>
+                  );
+                })}
+                </div>
+              )}
             </div>
           </div>
           </div>
@@ -969,16 +1663,71 @@ export default function Community() {
 
         {/* Feed */}
         <div className="col-12 col-lg-6">
-          <StatusBar currentUser={user} groups={groups} onClickGroup={(idx)=> setViewerGroupIndex(idx)} onAddRequested={()=> setShowStatusModal(true)} />
-          <CreatePostBar onPost={handlePrependPost} currentUser={user} onStatusCreated={(s)=> setStatuses(old=>[s, ...old])} onOpenStatusModal={()=> setShowStatusModal(true)} />
-          {loading && <div className="text-center text-muted small py-4">Loading feed...</div>}
-          {error && <div className="alert alert-danger">{error}</div>}
-          {!loading && posts.length === 0 && (
-            <div className="text-center text-muted small py-4">No posts yet. Be the first to share!</div>
+          {loadingStatuses ? (
+            <StatusBarSkeleton />
+          ) : (
+            <StatusBar 
+              currentUser={user}
+              groups={statusGroups.filter(g => {
+                if (!user) return false;
+                if (!g.user?._id) return false;
+                // show only friend's OR own statuses
+                return g.user._id === user._id || (user.friends && user.friends.includes(g.user._id));
+              })}
+              onClickGroup={(idx)=> setViewerGroupIndex(idx)}
+              onAddRequested={()=> setShowStatusModal(true)}
+            />
           )}
-          {posts.map((p) => (
-            <PostCard key={p._id} post={p} onToggleLike={handleToggleLike} onAddComment={handleAddComment} />
+          <CreatePostBar onPost={handlePrependPost} currentUser={user} onStatusCreated={(s)=> setStatuses(old=>[s, ...old])} onOpenStatusModal={()=> setShowStatusModal(true)} onGroups={myGroups} />
+          {loading ? (
+            <>
+              {[1, 2, 3].map(i => <PostCardSkeleton key={i} />)}
+            </>
+          ) : (
+            <>
+              {error && <div className="alert alert-danger">{error}</div>}
+              {posts.length === 0 && (
+                <div className="text-center text-muted small py-4">No posts yet. Be the first to share!</div>
+              )}
+              {posts.filter(post => {
+            if (hashtagFilter && !(Array.isArray(post.hashtags) && post.hashtags.includes(hashtagFilter))) return false;
+            if (selectedGroupId && post.group?._id !== selectedGroupId) return false; // When a group is selected, show only posts from that group
+            if (!user || !post.author?._id) return false;
+            const isMine = post.author._id === user._id;
+            const isFriend = user.friends && user.friends.includes(post.author._id);
+            
+            // If post belongs to a group
+            if (post.group) {
+              // For group posts, check if user is a member of the group
+              const group = groups.find(g => g._id === post.group?._id || g._id === post.group);
+              if (group) {
+                const isMember = group.members?.some(m => (m._id || m) === user._id) || group.admin?._id === user._id || (typeof group.admin === 'string' && group.admin === user._id);
+                return isMember; // Show group posts if user is a member
+              }
+              return false; // Don't show if group not found
+            }
+            
+            // For non-group posts, apply privacy settings
+            if (post.privacy === 'public') return isMine || isFriend;
+            if (post.privacy === 'friends') return isMine || isFriend;
+            return isMine || isFriend;
+          }).map((p) => (
+            <PostCard 
+              key={p._id} 
+              post={p} 
+              onToggleLike={handleToggleLike} 
+              onAddComment={handleAddComment} 
+              onHashtagClick={setHashtagFilter}
+              onPostUpdate={(updatedPost) => {
+                setPosts(old => old.map(x => x._id === updatedPost._id ? updatedPost : x));
+              }}
+              onPostDelete={(postId) => {
+                setPosts(old => old.filter(x => x._id !== postId));
+              }}
+            />
           ))}
+            </>
+          )}
         </div>
 
         {/* Right sidebar */}
@@ -986,15 +1735,82 @@ export default function Community() {
           <div className="community-sticky">
           <div className="card shadow-sm mb-3">
             <div className="card-body">
-              <div className="fw-bold mb-2">Discover Groups</div>
-              <div className="d-flex flex-column gap-2">
-                {["Backpackers Pakistan", "Foodies of Lahore", "Islamabad Photowalk"].map((g) => (
-                  <div className="d-flex align-items-center justify-content-between" key={g}>
-                    <span className="small">{g}</span>
-                    <button className="btn btn-sm btn-outline-secondary">Join</button>
-                  </div>
-                ))}
+              <div className="fw-bold mb-2 d-flex align-items-center justify-content-between">
+                <span><FiUsers className="me-2" />Groups</span>
+                <button className="btn btn-sm btn-primary" onClick={() => setShowCreateGroupModal(true)}>
+                  <FiPlus /> Create
+                </button>
               </div>
+              {loadingGroups ? (
+                <div className="d-flex flex-column gap-2">
+                  {[1, 2, 3].map(i => <GroupCardSkeleton key={i} />)}
+                </div>
+              ) : (
+                <div className="d-flex flex-column gap-2">
+                  {groups.slice(0, 5).map((g) => {
+                    // Robust membership check - handle both populated objects and IDs
+                    const userIdStr = user?._id ? String(user._id) : null;
+                    const adminId = g.admin?._id || g.admin;
+                    const adminIdStr = adminId ? String(adminId) : null;
+                    
+                    const isAdmin = userIdStr && adminIdStr === userIdStr;
+                    const isMember = isAdmin || (userIdStr && g.members?.some(m => {
+                      const memberId = m?._id || m;
+                      return memberId ? String(memberId) === userIdStr : false;
+                    }) || false);
+                    
+                    const hasRequested = userIdStr && (g.pendingRequests?.some(r => {
+                      const reqId = r?._id || r;
+                      return reqId ? String(reqId) === userIdStr : false;
+                    }) || false);
+                    
+                    const handleGroupClick = () => {
+                      // If user is a member or admin, navigate directly to group page
+                      if (isMember) {
+                        navigate(`/group/${g._id}`);
+                      } else {
+                        // If not a member, show preview modal
+                        setSelectedGroupForPreview(g);
+                        setShowGroupPreview(true);
+                      }
+                    };
+
+                    const handleJoinLeave = async (e) => {
+                      e.stopPropagation(); // Prevent group click
+                      try {
+                        if (isMember) {
+                          await leaveGroup(g._id);
+                          setGroups(groups.map(gr => gr._id === g._id ? { ...gr, members: gr.members?.filter(m => (m._id || m) !== user._id) || [] } : gr));
+                          setMyGroups(myGroups.filter(gr => gr._id !== g._id));
+                        } else {
+                          await joinGroup(g._id);
+                          setGroups(groups.map(gr => gr._id === g._id ? { ...gr, members: [...(gr.members || []), user._id] } : gr));
+                          setMyGroups([...myGroups, g]);
+                          // If public group, navigate after joining
+                          if (g.privacy === 'public') {
+                            navigate(`/group/${g._id}`);
+                          }
+                        }
+                      } catch (e) {
+                        alert(e?.response?.data?.message || "Failed to update group membership");
+                      }
+                    };
+
+                    return (
+                      <div key={g._id} className="d-flex align-items-center justify-content-between">
+                        <div className="flex-grow-1" style={{ cursor: 'pointer' }} onClick={handleGroupClick}>
+                          <div className="small fw-semibold">{g.name}</div>
+                          <div className="xsmall text-muted">{g.members?.length || 0} members</div>
+                        </div>
+                        <button className="btn btn-sm btn-outline-primary" onClick={handleJoinLeave}>
+                          {isMember ? 'Leave' : 'Join'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {groups.length === 0 && <div className="text-muted xsmall">No groups yet</div>}
+                </div>
+              )}
             </div>
           </div>
           <div className="card shadow-sm">
@@ -1009,19 +1825,98 @@ export default function Community() {
     {showStatusModal && (
       <CreateStatusModal currentUser={user} onCreated={(s)=> { setStatuses(old=>[s, ...old]); setShowStatusModal(false); }} onClose={()=> setShowStatusModal(false)} />
     )}
-    {viewerGroupIndex >= 0 && groups.length > 0 && (
-      <StatusViewerModal groups={groups} groupIndex={viewerGroupIndex} onChangeGroup={(idx)=> setViewerGroupIndex(idx)} onClose={()=> setViewerGroupIndex(-1)} currentUser={user} />
+    {viewerGroupIndex >= 0 && statusGroups.length > 0 && (
+      <StatusViewerModal groups={statusGroups} groupIndex={viewerGroupIndex} onChangeGroup={(idx)=> setViewerGroupIndex(idx)} onClose={()=> setViewerGroupIndex(-1)} currentUser={user} />
+    )}
+    {showCreateGroupModal && (
+      <CreateGroupModal 
+        currentUser={user} 
+        onCreated={(group) => {
+          setGroups([group, ...groups]);
+          setMyGroups([group, ...myGroups]);
+          setShowCreateGroupModal(false);
+        }} 
+        onClose={() => setShowCreateGroupModal(false)} 
+      />
+    )}
+    {showGroupPreview && selectedGroupForPreview && (
+      <GroupPreviewModal
+        group={selectedGroupForPreview}
+        user={user}
+        onClose={() => {
+          setShowGroupPreview(false);
+          setSelectedGroupForPreview(null);
+        }}
+        onJoinRequest={async () => {
+          try {
+            await joinGroup(selectedGroupForPreview._id);
+            // Update groups state
+            setGroups(groups.map(g => {
+              if (g._id === selectedGroupForPreview._id) {
+                if (selectedGroupForPreview.privacy === 'public') {
+                  return { ...g, members: [...(g.members || []), user._id] };
+                } else {
+                  return { ...g, pendingRequests: [...(g.pendingRequests || []), user._id] };
+                }
+              }
+              return g;
+            }));
+            // If public group, navigate to group page after joining
+            if (selectedGroupForPreview.privacy === 'public') {
+              navigate(`/group/${selectedGroupForPreview._id}`);
+            } else {
+              setShowGroupPreview(false);
+              setSelectedGroupForPreview(null);
+            }
+          } catch (err) {
+            alert(err?.response?.data?.message || "Failed to join group");
+          }
+        }}
+        isJoining={false}
+      />
     )}
       {/* Floating FAB menu */}
       <div className="fab-container">
         {fabBellOpen && (
           <div className="fab-dropdown">
-            <div className="fw-semibold small p-1 border-bottom">Notifications</div>
+            <div className="fw-semibold small p-1 border-bottom d-flex align-items-center justify-content-between">
+              <span>Notifications</span>
+              <button className="btn btn-link btn-sm" onClick={()=> setShowNotificationsCenter(true)}>Open center</button>
+            </div>
             <div className="d-flex flex-column gap-2 p-1">
               {notifications.slice(0,6).map(n => (
                 <div key={n._id} className="d-flex align-items-start gap-2">
-                  <img className="rounded-circle" style={{ width: 28, height: 28, objectFit:'cover' }} src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
-                  <div className="small"><span className="fw-semibold">{n.actor?.name}</span> {n.message}</div>
+                  <img className="rounded-circle" style={{ width: 28, height: 28, objectFit:'cover', cursor:'pointer' }}
+                       onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}
+                       src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
+                  <div className="small flex-grow-1" style={{cursor:'pointer'}} onClick={()=> navigate(`/profile?userId=${n.actor?._id || n.actor}`)}>
+                    <span className="fw-semibold">{n.actor?.name || 'Someone'}</span> {n.message}
+                  </div>
+                  {n.type === 'friend_request' && (
+                    <div className="d-flex gap-1">
+                      <button className="btn btn-sm btn-success"
+                        onClick={async()=>{
+                          try {
+                            await apiAcceptFriendRequest(n.actor?._id || n.actor);
+                            if (typeof setUser === 'function') {
+                              setUser(prev => prev ? { ...prev, friends: Array.from(new Set([...(prev.friends||[]), (n.actor?._id || n.actor)])), friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
+                            }
+                            // remove notification locally
+                            setNotifications(old => old.filter(x => x._id !== n._id));
+                          } catch {}
+                        }}>Approve</button>
+                      <button className="btn btn-sm btn-outline-secondary"
+                        onClick={async()=>{
+                          try {
+                            await apiDeclineFriendRequest(n.actor?._id || n.actor);
+                            if (typeof setUser === 'function') {
+                              setUser(prev => prev ? { ...prev, friendRequests: (prev.friendRequests||[]).filter(id => id !== (n.actor?._id || n.actor)) } : prev);
+                            }
+                            setNotifications(old => old.filter(x => x._id !== n._id));
+                          } catch {}
+                        }}>Reject</button>
+                    </div>
+                  )}
                 </div>
               ))}
               {notifications.length === 0 && <div className="text-muted small">No notifications</div>}

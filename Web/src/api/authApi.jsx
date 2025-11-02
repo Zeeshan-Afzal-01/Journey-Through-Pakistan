@@ -45,3 +45,8 @@ export const updateMe = (data) => {
 
 export const searchUsers = (q) => api.get('/users/search', { params: { q } });
 export const getTopCreators = () => api.get('/users/top-creators');
+export const sendFriendRequest = (targetUserId) => api.post('/users/friend/send', { targetUserId });
+export const acceptFriendRequest = (requestUserId) => api.post('/users/friend/accept', { requestUserId });
+export const declineFriendRequest = (requestUserId) => api.post('/users/friend/decline', { requestUserId });
+export const cancelFriendRequest = (targetUserId) => api.post('/users/friend/cancel', { targetUserId });
+export const unfriend = (targetUserId) => api.post('/users/friend/unfriend', { targetUserId });
