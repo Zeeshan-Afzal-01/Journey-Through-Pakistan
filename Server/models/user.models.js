@@ -58,6 +58,7 @@ const userSchema = new mongoose.Schema(
     sentRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // user IDs to whom this user has sent a friend request
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // user IDs who sent a friend request to this user
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // confirmed friends
+    savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }], // saved posts by the user
   },
 
   {
