@@ -14,7 +14,8 @@ import {
     acceptFriendRequest,
     declineFriendRequest,
     cancelFriendRequest,
-    unfriend
+    unfriend,
+    getFriends
 } from '../controller/userController.js'
 import { verifyToken } from '../middleware/auth.js';
 import Upload from '../middleware/upload.js'
@@ -36,6 +37,7 @@ router.post('/friend/accept', verifyToken, acceptFriendRequest);
 router.post('/friend/decline', verifyToken, declineFriendRequest);
 router.post('/friend/cancel', verifyToken, cancelFriendRequest);
 router.post('/friend/unfriend', verifyToken, unfriend);
+router.get('/friends', verifyToken, getFriends);
 router.get('/:id', verifyToken, getUserById);
 router.get('/show-all-users',verifyToken, getAllUsers)
 

@@ -5,18 +5,82 @@
   top: 70px;
   height: calc(100vh - 70px);
   align-self: flex-start;
+  padding: 0.5rem;
 }
 
 @media (max-width: 991.98px) {
   .jtp-sidebar {
     width: 100%;
-    min-height: auto;
+    min-height: auto !important;
+    height: auto !important;
+    position: relative !important;
+    top: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-right: none !important;
+  }
+  .jtp-sidebar-header {
+    margin: 0 !important;
+    padding: 0.75rem 1rem !important;
+    border-bottom: 1px solid #dee2e6;
+    min-height: auto !important;
+    height: auto !important;
+  }
+  .jtp-sidebar #jtpSidebarCollapse.collapse:not(.show) {
+    display: none !important;
+    height: 0 !important;
+    min-height: 0 !important;
+    max-height: 0 !important;
+    overflow: hidden !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    visibility: hidden;
+    opacity: 0;
+  }
+  .jtp-sidebar #jtpSidebarCollapse.collapse.show {
+    height: auto !important;
+    display: block !important;
   }
   .jtp-layout {
     flex-direction: column;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
   }
   .jtp-content {
-    width: 100%;
+    width: 100% !important;
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+    flex: 1;
+  }
+  
+  /* Fix Bootstrap collapse leaving space - completely hide collapsed content */
+  .collapse:not(.show) {
+    display: none !important;
+    height: 0 !important;
+    overflow: hidden !important;
+  }
+  /* Ensure collapsed sidebar takes minimal space - only header visible */
+  .jtp-sidebar:has(#jtpSidebarCollapse.collapse:not(.show)) {
+    height: auto !important;
+    min-height: auto !important;
+  }
+  
+  /* When sidebar is collapsed, ensure it doesn't add extra spacing */
+  .jtp-sidebar #jtpSidebarCollapse.collapse {
+    transition: height 0.35s ease;
+  }
+  
+  /* Remove any extra margins/padding from sidebar when collapsed */
+  /* Remove padding from nav items on mobile */
+  .jtp-sidebar .nav {
+    padding: 0;
+    margin: 0;
+  }
+  
+  /* Ensure sidebar background doesn't add visual space when collapsed */
+  .jtp-sidebar.bg-light {
+    background-color: #f8f9fa !important;
   }
 }
 

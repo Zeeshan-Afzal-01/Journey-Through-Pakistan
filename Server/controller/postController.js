@@ -2,6 +2,7 @@ import Post from "../models/post.models.js";
 import Notification from "../models/notification.models.js";
 import User from "../models/user.models.js";
 import Hashtag from "../models/hashtag.models.js";
+import mongoose from "mongoose";
 
 function extractHashtags(text) {
   if (!text) return [];
@@ -11,7 +12,7 @@ function extractHashtags(text) {
 export const createPost = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { text, imageUrl, place, feeling, privacy, group } = req.body;
+    const { text, imageUrl, place, feeling, privacy, group, taggedUsers } = req.body;
  
    
 
@@ -39,11 +40,48 @@ export const createPost = async (req, res) => {
       }
     }
 
+    // Validate tagged users - they must be friends
+    let validTaggedUsers = [];
+    if (taggedUsers && Array.isArray(taggedUsers) && taggedUsers.length > 0) {
+      const user = await User.findById(userId);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      
+      const friendIds = user.friends.map(f => f.toString());
+      validTaggedUsers = taggedUsers.filter(taggedId => {
+        const taggedStr = typeof taggedId === 'string' ? taggedId : taggedId.toString();
+        return friendIds.includes(taggedStr);
+      });
+    }
+
     // --- Hashtag extraction logic ---
     const hashtags = extractHashtags(text || "");
 
 
-    const post = await Post.create({ author: userId, text, imageUrl: finalImageUrl, place, feeling, privacy, group: group || null, hashtags });
+    const post = await Post.create({ 
+      author: userId, 
+      text, 
+      imageUrl: finalImageUrl, 
+      place, 
+      feeling, 
+      privacy, 
+      group: group || null, 
+      hashtags,
+      taggedUsers: validTaggedUsers.length > 0 ? validTaggedUsers : undefined
+    });
+    
+    // Send notifications to tagged users
+    if (validTaggedUsers.length > 0) {
+      for (const taggedUserId of validTaggedUsers) {
+        await Notification.create({
+          recipient: taggedUserId,
+          actor: userId,
+          type: "tag",
+          post: post._id,
+          message: "tagged you in a post"
+        });
+      }
+    }
+    
     // Update/increment hashtags collection for each tag
     for (const tag of hashtags) {
       await Hashtag.findOneAndUpdate(
@@ -54,7 +92,8 @@ export const createPost = async (req, res) => {
     }
     const populated = await Post.findById(post._id)
       .populate("author", "name profilePicture city")
-      .populate("group", "name");
+      .populate("group", "name")
+      .populate("taggedUsers", "name profilePicture");
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to create post", error: err.message });
@@ -80,6 +119,7 @@ export const listPosts = async (req, res) => {
       .sort({ createdAt: -1 })
       .populate("author", "name profilePicture city")
       .populate("group", "name")
+      .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     // Convert and recursively populate deeper replies
@@ -98,16 +138,59 @@ export const listPosts = async (req, res) => {
 export const getPost = async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // First, get the post without populating taggedUsers to check if it exists
     let post = await Post.findById(id)
       .populate("author", "name profilePicture city")
       .populate("group", "name")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
-    post = post ? post.toObject() : null;
-    if (post) await populateRepliesAuthors(post.comments);
-    if (!post) return res.status(404).json({ message: "Post not found" });
+    
+    if (!post) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+    
+    post = post.toObject();
+    
+    // Safely populate taggedUsers
+    if (post.taggedUsers && Array.isArray(post.taggedUsers) && post.taggedUsers.length > 0) {
+      try {
+        const taggedUserIds = post.taggedUsers.map(id => {
+          // Handle both ObjectId and string formats
+          if (!id) return null;
+          if (mongoose.Types.ObjectId.isValid(id)) {
+            if (id._id) return new mongoose.Types.ObjectId(id._id);
+            if (typeof id === 'object' && id.toString) return new mongoose.Types.ObjectId(id);
+            if (typeof id === 'string') return new mongoose.Types.ObjectId(id);
+            return new mongoose.Types.ObjectId(id);
+          }
+          return null;
+        }).filter(id => id !== null && mongoose.Types.ObjectId.isValid(id)); // Remove any null/undefined/invalid values
+        
+        if (taggedUserIds.length > 0) {
+          const taggedUsers = await User.find({ _id: { $in: taggedUserIds } })
+            .select("name profilePicture")
+            .lean();
+          post.taggedUsers = taggedUsers || [];
+        } else {
+          post.taggedUsers = [];
+        }
+      } catch (populateErr) {
+        console.error('Error populating taggedUsers:', populateErr);
+        post.taggedUsers = []; // Set to empty array if populate fails
+      }
+    } else {
+      post.taggedUsers = post.taggedUsers || [];
+    }
+    
+    // Populate nested replies
+    if (post.comments && post.comments.length > 0) {
+      await populateRepliesAuthors(post.comments);
+    }
+    
     res.json(post);
   } catch (err) {
+    console.error('Error in getPost:', err);
     res.status(500).json({ message: "Failed to fetch post", error: err.message });
   }
 };
@@ -160,6 +243,7 @@ export const getSavedPosts = async (req, res) => {
     const savedPosts = await Post.find({ _id: { $in: savedPostIds } })
       .populate("author", "name profilePicture city")
       .populate("group", "name groupPhoto")
+      .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" })
       .sort({ createdAt: -1 });
@@ -209,6 +293,7 @@ export const toggleLike = async (req, res) => {
     let populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
       .populate("group", "name")
+      .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     populated = populated ? populated.toObject() : null;
@@ -274,6 +359,7 @@ export const addComment = async (req, res) => {
     }
     let populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
+      .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     populated = populated ? populated.toObject() : null;
@@ -356,6 +442,7 @@ export const updatePost = async (req, res) => {
     let populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
       .populate("group", "name")
+      .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     

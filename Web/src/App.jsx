@@ -18,6 +18,8 @@ import Notifications from "./pages/Notifications";
 import Search from "./pages/Search";
 import GroupDetail from "./pages/GroupDetail";
 import SavedPosts from "./pages/SavedPosts";
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
@@ -201,6 +203,19 @@ function App() {
           {/* Default Route - Redirect to Signup */}
           <Route path="*" element={<LandingPage />} />
         </Routes>
+        <ToastContainer
+          position="top-right"
+          autoClose={4000}
+          hideProgressBar={false}
+          newestOnTop={true}
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+          style={{ marginTop: '70px' }}
+        />
       </Router>
     </AuthProvider>
   );
