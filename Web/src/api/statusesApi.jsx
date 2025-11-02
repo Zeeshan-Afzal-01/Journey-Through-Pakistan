@@ -15,4 +15,10 @@ export const createStatus = ({ file, caption }) => {
 
 export const markStatusViewed = (id) => api.post(`/statuses/${id}/view`);
 
+export const addStatusReaction = (id, type) => api.post(`/statuses/${id}/reaction`, { type });
+
+export const removeStatusReaction = (id) => api.delete(`/statuses/${id}/reaction`);
+
+export const addStatusMessage = (id, text) => api.post(`/statuses/${id}/message`, { text });
+
 
