@@ -174,9 +174,12 @@ export const getTopCreators = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
-    const userExists = await User.findById(userId).select("-password");
+    const userExists = await User.findById(userId)
+      .select("-password")
+      .populate("friends", "name profilePicture city")
+      .lean();
     if (!userExists) {
-      res.status(400).json({ message: "User Not Found!" });
+      return res.status(404).json({ message: "User Not Found!" });
     }
 
     res.status(200).json(userExists);
@@ -229,12 +232,28 @@ export const updateMe = async (req, res) => {
       const salt = await bcrypt.genSalt(10);
       updates.password = await bcrypt.hash(updates.password, salt);
     }
+    
+    // Handle profile picture upload (single file or from fields)
     if (req.file) {
-      updates.profilePicture = `uploads/${req.user.email}/${req.file.filename}`;
+      updates.profilePicture = `uploads/profiles/${req.file.filename}`;
     }
+    if (req.files) {
+      if (req.files.profilePicture && req.files.profilePicture[0]) {
+        updates.profilePicture = `uploads/profiles/${req.files.profilePicture[0].filename}`;
+      }
+      if (req.files.coverPhoto && req.files.coverPhoto[0]) {
+        updates.coverPhoto = `uploads/covers/${req.files.coverPhoto[0].filename}`;
+      }
+    }
+    
+    // Handle text fields
+    if (req.body.name) updates.name = req.body.name;
+    if (req.body.city) updates.city = req.body.city;
+    if (req.body.bio) updates.bio = req.body.bio;
+    
     const updated = await User.findByIdAndUpdate(req.user.id, updates, {
       new: true,
-    }).select("-password");
+    }).select("-password").populate("friends", "name profilePicture city");
     if (!updated) return res.status(404).json({ message: "User not found" });
     res.json({ message: "Profile updated", user: updated });
   } catch (err) {
@@ -448,5 +467,405 @@ export const getFriends = async (req, res) => {
     res.json(user.friends || []);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch friends", error: err.message });
+  }
+};
+
+// Get user stats (posts count, etc.)
+export const getUserStats = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get posts count
+    const postsCount = await Post.countDocuments({ author: userId });
+    
+    // Get saved posts count
+    const user = await User.findById(userId).select('savedPosts').lean();
+    const savedPostsCount = user?.savedPosts?.length || 0;
+    
+    // Get friends count
+    const userWithFriends = await User.findById(userId).select('friends').lean();
+    const friendsCount = userWithFriends?.friends?.length || 0;
+    
+    res.json({
+      postsCount,
+      savedPostsCount,
+      friendsCount
+    });
+  } catch (err) {
+    console.error('Error fetching user stats:', err);
+    res.status(500).json({ message: "Failed to fetch user stats", error: err.message });
+  }
+};
+
+// Get recent activities for current user
+export const getRecentActivities = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get activities from last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const activities = [];
+    
+    // 1. Posts created by user
+    const userPosts = await Post.find({ 
+      author: userId, 
+      createdAt: { $gte: thirtyDaysAgo } 
+    })
+    .select('_id text imageUrl createdAt')
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+    
+    userPosts.forEach(post => {
+      const postText = post.text?.substring(0, 50) || 'a post';
+      activities.push({
+        type: 'post_created',
+        description: `Created a new post: "${postText}${post.text?.length > 50 ? '...' : ''}"`,
+        timestamp: post.createdAt,
+        postId: post._id
+      });
+    });
+    
+    // 2. Comments made by user (search in all posts, including nested replies)
+    const allPosts = await Post.find({
+      $or: [
+        { 'comments.author': userId },
+        { 'comments.replies.author': userId }
+      ]
+    })
+    .select('_id text comments')
+    .sort({ createdAt: -1 })
+    .limit(50)
+    .lean();
+    
+    const extractCommentsRecursively = (comments, postText, postId) => {
+      if (!comments || !Array.isArray(comments)) return;
+      
+      comments.forEach(comment => {
+        if (String(comment.author) === String(userId) && 
+            comment.createdAt && 
+            new Date(comment.createdAt) >= thirtyDaysAgo) {
+          const commentText = comment.text?.substring(0, 40) || 'a comment';
+          const truncatedPostText = postText?.substring(0, 30) || 'a post';
+          activities.push({
+            type: 'comment',
+            description: `Commented "${commentText}${comment.text?.length > 40 ? '...' : ''}" on "${truncatedPostText}${postText?.length > 30 ? '...' : ''}"`,
+            timestamp: comment.createdAt,
+            postId: postId
+          });
+        }
+        
+        // Recursively check replies
+        if (comment.replies && Array.isArray(comment.replies)) {
+          extractCommentsRecursively(comment.replies, postText, postId);
+        }
+      });
+    };
+    
+    allPosts.forEach(post => {
+      const postText = post.text || '';
+      extractCommentsRecursively(post.comments, postText, post._id);
+    });
+    
+    // 3. Likes given by user
+    const likedPosts = await Post.find({
+      likes: userId,
+      updatedAt: { $gte: thirtyDaysAgo }
+    })
+    .select('_id text author')
+    .populate('author', 'name')
+    .sort({ updatedAt: -1 })
+    .limit(10)
+    .lean();
+    
+    likedPosts.forEach(post => {
+      const postText = post.text?.substring(0, 40) || 'a post';
+      const authorName = post.author?.name || 'someone';
+      activities.push({
+        type: 'like',
+        description: `Liked "${postText}${post.text?.length > 40 ? '...' : ''}" by ${authorName}`,
+        timestamp: post.updatedAt,
+        postId: post._id
+      });
+    });
+    
+    // 4. Statuses created by user
+    const Status = (await import('../models/status.models.js')).default;
+    const userStatuses = await Status.find({
+      author: userId,
+      createdAt: { $gte: thirtyDaysAgo }
+    })
+    .select('_id caption createdAt')
+    .sort({ createdAt: -1 })
+    .limit(10)
+    .lean();
+    
+    userStatuses.forEach(status => {
+      activities.push({
+        type: 'status',
+        description: `Created a new status${status.caption ? `: "${status.caption.substring(0, 30)}${status.caption.length > 30 ? '...' : ''}"` : ''}`,
+        timestamp: status.createdAt,
+        statusId: status._id
+      });
+    });
+    
+    // 5. Saved posts
+    const user = await User.findById(userId).select('savedPosts').lean();
+    if (user?.savedPosts && user.savedPosts.length > 0) {
+      const savedPosts = await Post.find({
+        _id: { $in: user.savedPosts },
+        updatedAt: { $gte: thirtyDaysAgo }
+      })
+      .select('_id text author')
+      .populate('author', 'name')
+      .sort({ updatedAt: -1 })
+      .limit(5)
+      .lean();
+      
+      savedPosts.forEach(post => {
+        const postText = post.text?.substring(0, 40) || 'a post';
+        activities.push({
+          type: 'saved',
+          description: `Saved "${postText}${post.text?.length > 40 ? '...' : ''}"`,
+          timestamp: post.updatedAt,
+          postId: post._id
+        });
+      });
+    }
+    
+    // 6. Groups joined
+    const Group = (await import('../models/group.models.js')).default;
+    const joinedGroups = await Group.find({
+      members: userId,
+      updatedAt: { $gte: thirtyDaysAgo }
+    })
+    .select('_id name updatedAt')
+    .sort({ updatedAt: -1 })
+    .limit(5)
+    .lean();
+    
+    joinedGroups.forEach(group => {
+      activities.push({
+        type: 'group_joined',
+        description: `Joined group "${group.name}"`,
+        timestamp: group.updatedAt,
+        groupId: group._id
+      });
+    });
+    
+    // Sort all activities by timestamp (newest first)
+    activities.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Return top 7 most recent activities
+    res.json(activities.slice(0, 6));
+  } catch (err) {
+    console.error('Error fetching recent activities:', err);
+    res.status(500).json({ message: "Failed to fetch recent activities", error: err.message });
+  }
+};
+
+// Get community participation (posts, comments, shares) by time period (for dashboard graph)
+export const getCommunityAttractionsByMonth = async (req, res) => {
+  try {
+    const { period = '12months' } = req.query; // period: '7days', '30days', '12months', 'year'
+    
+    let startDate = new Date();
+    let groupBy = {};
+    
+    // Determine date range and grouping based on period
+    let isDayGrouping = false;
+    if (period === '7days') {
+      startDate.setDate(startDate.getDate() - 7);
+      isDayGrouping = true;
+      groupBy = { 
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" }
+      };
+    } else if (period === '30days') {
+      startDate.setDate(startDate.getDate() - 30);
+      isDayGrouping = true;
+      groupBy = { 
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" },
+        day: { $dayOfMonth: "$createdAt" }
+      };
+    } else if (period === '12months' || period === 'year') {
+      startDate.setMonth(startDate.getMonth() - 12);
+      isDayGrouping = false;
+      groupBy = { 
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" }
+      };
+    } else {
+      startDate.setMonth(startDate.getMonth() - 12);
+      isDayGrouping = false;
+      groupBy = { 
+        year: { $year: "$createdAt" },
+        month: { $month: "$createdAt" }
+      };
+    }
+    
+    // Format data for the chart
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+    // 1. Aggregate posts by date
+    const postsData = await Post.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startDate }
+        }
+      },
+      {
+        $group: {
+          _id: groupBy,
+          posts: { $sum: 1 },
+          shares: { $sum: "$shares" }
+        }
+      }
+    ]);
+
+    // 2. Aggregate comments by date (including nested replies)
+    // Fetch all posts and manually count comments and replies
+    const allPosts = await Post.find({
+      createdAt: { $gte: startDate }
+    }).select('comments createdAt').lean();
+
+    const commentsByDate = {};
+    
+    // Helper function to recursively count comments
+    const countComments = (comments) => {
+      if (!comments || !Array.isArray(comments)) return;
+      comments.forEach(comment => {
+        if (comment.createdAt) {
+          const commentDate = new Date(comment.createdAt);
+          const key = period === '7days' || period === '30days'
+            ? `${commentDate.getDate()}/${commentDate.getMonth() + 1}/${commentDate.getFullYear()}`
+            : `${monthNames[commentDate.getMonth()]} ${commentDate.getFullYear()}`;
+          if (!commentsByDate[key]) commentsByDate[key] = 0;
+          commentsByDate[key]++;
+        }
+        // Recursively count replies
+        if (comment.replies && Array.isArray(comment.replies)) {
+          countComments(comment.replies);
+        }
+      });
+    };
+
+    allPosts.forEach(post => {
+      if (post.comments && post.comments.length > 0) {
+        countComments(post.comments);
+      }
+    });
+
+    // Convert to format matching postsData
+    const commentsData = Object.entries(commentsByDate).map(([key, count]) => {
+      // Parse key to get date components
+      let _id;
+      if (period === '7days' || period === '30days') {
+        const [day, month, year] = key.split('/').map(Number);
+        _id = { day, month, year };
+      } else {
+        const [monthName, year] = key.split(' ');
+        const month = monthNames.indexOf(monthName) + 1;
+        _id = { month, year: parseInt(year) };
+      }
+      return { _id, comments: count };
+    });
+    
+    // Combine posts, comments, and shares data
+    const combinedData = {};
+    
+    postsData.forEach(item => {
+      const day = item._id.day;
+      const month = item._id.month;
+      const year = item._id.year;
+      const key = isDayGrouping
+        ? `${day}/${month}/${year}`
+        : `${monthNames[month - 1]} ${year}`;
+      if (!combinedData[key]) {
+        combinedData[key] = {
+          _id: item._id,
+          posts: 0,
+          comments: 0,
+          shares: 0,
+          total: 0
+        };
+      }
+      combinedData[key].posts = item.posts;
+      combinedData[key].shares = item.shares || 0;
+      combinedData[key].total = combinedData[key].posts + combinedData[key].comments + combinedData[key].shares;
+    });
+
+    commentsData.forEach(item => {
+      const day = item._id.day;
+      const month = item._id.month;
+      const year = item._id.year;
+      const key = isDayGrouping
+        ? `${day}/${month}/${year}`
+        : `${monthNames[month - 1]} ${year}`;
+      if (!combinedData[key]) {
+        combinedData[key] = {
+          _id: item._id,
+          posts: 0,
+          comments: 0,
+          shares: 0,
+          total: 0
+        };
+      }
+      combinedData[key].comments = item.comments;
+      combinedData[key].total = combinedData[key].posts + combinedData[key].comments + combinedData[key].shares;
+    });
+
+    let result = [];
+    
+    if (period === '7days' || period === '30days') {
+      // Fill in missing days with 0
+      const now = new Date();
+      const daysBack = period === '7days' ? 7 : 30;
+      for (let i = daysBack - 1; i >= 0; i--) {
+        const date = new Date(now);
+        date.setDate(date.getDate() - i);
+        const dateKey = `${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+        const existing = combinedData[dateKey];
+        result.push({
+          label: dateKey,
+          month: `${monthNames[date.getMonth()]} ${date.getDate()}`,
+          posts: existing?.posts || 0,
+          comments: existing?.comments || 0,
+          shares: existing?.shares || 0,
+          total: existing?.total || 0,
+          date: date,
+          day: date.getDate(),
+          monthNum: date.getMonth() + 1,
+          year: date.getFullYear()
+        });
+      }
+    } else {
+      // Fill in missing months with 0
+      const now = new Date();
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const monthKey = `${monthNames[date.getMonth()]} ${date.getFullYear()}`;
+        const existing = combinedData[monthKey];
+        result.push({
+          label: monthKey,
+          month: monthKey,
+          posts: existing?.posts || 0,
+          comments: existing?.comments || 0,
+          shares: existing?.shares || 0,
+          total: existing?.total || 0,
+          year: date.getFullYear(),
+          monthNum: date.getMonth() + 1
+        });
+      }
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching community participation:', err);
+    res.status(500).json({ message: "Failed to fetch community participation", error: err.message });
   }
 };

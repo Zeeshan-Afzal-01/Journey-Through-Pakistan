@@ -4,6 +4,8 @@ import { FiBell } from "react-icons/fi";
 import "../assests/css/notifications.css";
 import { listNotifications, markAllRead } from "../api/notificationsApi.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
+import { NotificationSkeleton } from '../components/SkeletonLoader.jsx';
+import "../assests/css/skeleton.css";
 
 export default function Notifications() {
   const [items, setItems] = useState([])
@@ -86,7 +88,7 @@ export default function Notifications() {
           <div className="text-center mb-3 text-primary"><FiBell size={22} /></div>
           <h5 className="fw-bold text-center mb-4">All Recent Notifications</h5>
           {loading ? (
-            <div className="text-center text-muted small">Loading...</div>
+            <NotificationSkeleton />
           ) : (
             <div className="d-flex flex-column gap-2">
               {items.map((n) => (

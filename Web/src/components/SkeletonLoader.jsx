@@ -205,3 +205,107 @@ export function GroupCardSkeleton() {
   );
 }
 
+export function NotificationSkeleton() {
+  return (
+    <div className="d-flex flex-column gap-2">
+      {[1, 2, 3, 4, 5].map(i => (
+        <div key={i} className="d-flex align-items-start gap-2">
+          <div className="skeleton-circle rounded-circle" style={{ width: 40, height: 40 }}></div>
+          <div className="flex-grow-1">
+            <div className="skeleton-text mb-2" style={{ width: '60%', height: '14px' }}></div>
+            <div className="skeleton-text" style={{ width: '40%', height: '12px' }}></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function DashboardSkeleton() {
+  return (
+    <div className="container-fluid p-4">
+      {/* Welcome Section Skeleton */}
+      <div className="mb-4">
+        <div className="skeleton-text mb-2" style={{ width: '300px', height: '28px' }}></div>
+        <div className="skeleton-text" style={{ width: '500px', height: '16px' }}></div>
+      </div>
+
+      {/* Quick Actions Skeleton */}
+      <div className="row g-3 mb-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="col-6 col-md-3">
+            <div className="skeleton-button" style={{ width: '100%', height: '60px', borderRadius: '12px' }}></div>
+          </div>
+        ))}
+      </div>
+
+      {/* At a Glance Cards Skeleton */}
+      <div className="mb-3">
+        <div className="skeleton-text mb-3" style={{ width: '200px', height: '20px' }}></div>
+      </div>
+      <div className="row g-3 mb-4">
+        {[1, 2, 3, 4].map(i => (
+          <div key={i} className="col-12 col-md-6 col-xl-3">
+            <div className="card h-100 shadow-sm">
+              <div className="card-body d-flex justify-content-between align-items-center">
+                <div>
+                  <div className="skeleton-text mb-2" style={{ width: '120px', height: '14px' }}></div>
+                  <div className="skeleton-text" style={{ width: '60px', height: '48px' }}></div>
+                </div>
+                <div className="skeleton-circle" style={{ width: '22px', height: '22px' }}></div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Recent Activity and Graph Skeleton */}
+      <div className="row g-3">
+        <div className="col-12 col-xl-6">
+          <div className="card h-100 shadow-sm">
+            <div className="card-body">
+              <div className="skeleton-text mb-3" style={{ width: '150px', height: '18px' }}></div>
+              <div className="d-flex flex-column gap-2">
+                {[1, 2, 3, 4, 5, 6].map(i => (
+                  <div key={i} className="d-flex justify-content-between align-items-center">
+                    <div className="skeleton-text" style={{ width: '70%', height: '16px' }}></div>
+                    <div className="skeleton-text" style={{ width: '80px', height: '14px' }}></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="col-12 col-xl-6">
+          <div className="card h-100 shadow-sm">
+            <div className="card-body">
+              <div className="skeleton-text mb-3" style={{ width: '280px', height: '18px' }}></div>
+              <div className="skeleton-image" style={{ width: '100%', height: '280px', borderRadius: '8px' }}></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Recommendations Skeleton */}
+      <div className="mt-4">
+        <div className="skeleton-text mb-3" style={{ width: '300px', height: '20px' }}></div>
+        <div className="row g-3">
+          {[1, 2, 3, 4, 5, 6].map(i => (
+            <div key={i} className="col-12 col-md-6 col-xl-4">
+              <div className="card recommendation-card shadow-sm h-100">
+                <div className="skeleton-image" style={{ width: '100%', height: '200px' }}></div>
+                <div className="card-body">
+                  <div className="skeleton-text mb-2" style={{ width: '150px', height: '18px' }}></div>
+                  <div className="skeleton-text mb-2" style={{ width: '100px', height: '14px' }}></div>
+                  <div className="skeleton-text mb-1" style={{ width: '100%', height: '14px' }}></div>
+                  <div className="skeleton-text" style={{ width: '80%', height: '14px' }}></div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+

@@ -47,6 +47,10 @@ const userSchema = new mongoose.Schema(
       type: String,
     },
 
+    coverPhoto: {
+      type: String,
+    },
+
     otpVerify: {
       type: String,
     },
