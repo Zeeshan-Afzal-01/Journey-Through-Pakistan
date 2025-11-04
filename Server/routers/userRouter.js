@@ -15,10 +15,14 @@ import {
     declineFriendRequest,
     cancelFriendRequest,
     unfriend,
-    getFriends
+    getFriends,
+    getCommunityAttractionsByMonth,
+    getRecentActivities,
+    getUserStats
 } from '../controller/userController.js'
 import { verifyToken } from '../middleware/auth.js';
 import Upload from '../middleware/upload.js'
+import uploadProfile from '../middleware/uploadProfile.js'
 
 const router = express.Router()
 // router.get('/login', login)
@@ -26,9 +30,15 @@ router.post('/register', Upload.single('profilePicture'), registerUser);
 router.post('/login', login);
 // static routes before param routes
 router.get('/getMe', verifyToken, getMe);
-router.put('/me', verifyToken, Upload.single('profilePicture'), updateMe);
+router.put('/me', verifyToken, uploadProfile.fields([
+  { name: 'profilePicture', maxCount: 1 },
+  { name: 'coverPhoto', maxCount: 1 }
+]), updateMe);
 router.get('/search', verifyToken, (await import('../controller/userController.js')).searchUsers);
 router.get('/top-creators', verifyToken, (await import('../controller/userController.js')).getTopCreators);
+router.get('/attractions-by-month', verifyToken, getCommunityAttractionsByMonth);
+router.get('/recent-activities', verifyToken, getRecentActivities);
+router.get('/stats', verifyToken, getUserStats);
 router.post('/verify-otp', verifyOtp);
 router.post('/resend-otp', resendOtp);
 router.post('/logout', logout);

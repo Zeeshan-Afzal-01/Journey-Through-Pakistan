@@ -34,12 +34,14 @@ export const resendOtp = (payload) => api.post("/users/resend-otp", payload);
 // LOGOUT (optional)
 export const logout = () => api.post("/users/logout");
 
-// UPDATE ME (profile picture and other fields)
+// UPDATE ME (profile picture, cover photo and other fields)
 export const updateMe = (data) => {
   const fd = new FormData();
   if (data.profilePicture) fd.append("profilePicture", data.profilePicture);
+  if (data.coverPhoto) fd.append("coverPhoto", data.coverPhoto);
   if (data.name) fd.append("name", data.name);
   if (data.city) fd.append("city", data.city);
+  if (data.bio) fd.append("bio", data.bio);
   return api.put("/users/me", fd, { headers: { "Content-Type": "multipart/form-data" } });
 };
 
@@ -51,3 +53,6 @@ export const declineFriendRequest = (requestUserId) => api.post('/users/friend/d
 export const cancelFriendRequest = (targetUserId) => api.post('/users/friend/cancel', { targetUserId });
 export const unfriend = (targetUserId) => api.post('/users/friend/unfriend', { targetUserId });
 export const getFriends = () => api.get('/users/friends');
+export const getCommunityAttractionsByMonth = (period = '12months') => api.get('/users/attractions-by-month', { params: { period } });
+export const getRecentActivities = () => api.get('/users/recent-activities');
+export const getUserStats = () => api.get('/users/stats');

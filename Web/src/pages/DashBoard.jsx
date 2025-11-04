@@ -1,13 +1,190 @@
-import React,{useContext} from "react";
+import React,{useContext, useEffect, useState, useRef, useCallback} from "react";
 import { motion } from "framer-motion";
 import { FiBookmark, FiGrid, FiUser, FiStar, FiMessageCircle } from "react-icons/fi";
 import { Link } from "react-router-dom";
 import "../assests/css/dashboard.css";
 import { AuthContext } from "../context/AuthContext";
+import { getCommunityAttractionsByMonth, getRecentActivities, getUserStats } from "../api/authApi.jsx";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { DashboardSkeleton } from '../components/SkeletonLoader.jsx';
+import "../assests/css/skeleton.css";
 
 const Dashboard = () => {
   const { user } = useContext(AuthContext)
   const userRole = user.role === "tourist"?true:false
+  const [attractionsData, setAttractionsData] = useState([])
+  const [loadingAttractions, setLoadingAttractions] = useState(true)
+  const [timePeriod, setTimePeriod] = useState('12months') // '7days', '30days', '12months', 'year'
+  const [activities, setActivities] = useState([])
+  const [loadingActivities, setLoadingActivities] = useState(true)
+  const [userStats, setUserStats] = useState({ postsCount: 0, savedPostsCount: 0, friendsCount: 0 })
+  const [loadingStats, setLoadingStats] = useState(true)
+  const [initialLoading, setInitialLoading] = useState(true)
+  const pollingIntervalRef = useRef(null)
+  const activitiesPollingRef = useRef(null)
+  const statsPollingRef = useRef(null)
+  const timePeriodRef = useRef('12months') // Keep current timePeriod in ref to avoid stale closure
+
+  const fetchAttractionsData = useCallback(async (skipLoading = false, period = null) => {
+    try {
+      const periodToUse = period || timePeriodRef.current || timePeriod
+      if (!skipLoading) {
+        setLoadingAttractions(true)
+      }
+      const response = await getCommunityAttractionsByMonth(periodToUse)
+      const data = response?.data || []
+      setAttractionsData(Array.isArray(data) ? data : [])
+      setLoadingAttractions(false)
+    } catch (error) {
+      console.error('Error fetching attractions data:', error)
+      setAttractionsData([])
+      setLoadingAttractions(false)
+    }
+  }, [])
+  
+  // Update ref when timePeriod changes
+  useEffect(() => {
+    timePeriodRef.current = timePeriod
+  }, [timePeriod])
+  
+  // Handle time period change and polling interval
+  useEffect(() => {
+    // Refetch when time period changes (only after initial load)
+    if (!initialLoading) {
+      fetchAttractionsData()
+    }
+    
+    // Clear existing polling interval
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current)
+      pollingIntervalRef.current = null
+    }
+    
+    // Create new interval with updated timePeriod (only if not in initial loading)
+    if (!initialLoading) {
+      pollingIntervalRef.current = setInterval(() => {
+        fetchAttractionsData(true, timePeriodRef.current) // Use ref to get current value
+      }, 30000)
+    }
+    
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+    }
+  }, [timePeriod, initialLoading, fetchAttractionsData])
+
+  const fetchRecentActivities = async (skipLoading = false) => {
+    try {
+      if (!skipLoading) {
+        setLoadingActivities(true)
+      }
+      const { data } = await getRecentActivities()
+      setActivities(Array.isArray(data) ? data : [])
+      setLoadingActivities(false)
+    } catch (error) {
+      console.error('Error fetching recent activities:', error)
+      setLoadingActivities(false)
+    }
+  }
+
+  const fetchUserStats = async (skipLoading = false) => {
+    try {
+      if (!skipLoading) {
+        setLoadingStats(true)
+      }
+      const { data } = await getUserStats()
+      setUserStats({
+        postsCount: data.postsCount || 0,
+        savedPostsCount: data.savedPostsCount || 0,
+        friendsCount: data.friendsCount || 0
+      })
+      setLoadingStats(false)
+    } catch (error) {
+      console.error('Error fetching user stats:', error)
+      setLoadingStats(false)
+    }
+  }
+
+  const getTimeAgo = (date) => {
+    if (!date) return '';
+    const now = new Date();
+    const then = new Date(date);
+    const diffInSeconds = Math.floor((now - then) / 1000);
+    
+    if (diffInSeconds < 60) return 'Just now';
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes} minute${diffInMinutes > 1 ? 's' : ''} ago`;
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays === 1) return 'Yesterday';
+    if (diffInDays < 7) return `${diffInDays} days ago`;
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    if (diffInWeeks < 4) return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+    const diffInMonths = Math.floor(diffInDays / 30);
+    return `${diffInMonths} month${diffInMonths > 1 ? 's' : ''} ago`;
+  }
+
+  useEffect(() => {
+    // Initial fetch
+    const loadInitialData = async () => {
+      setInitialLoading(true)
+      await Promise.all([
+        fetchAttractionsData(),
+        fetchRecentActivities(),
+        fetchUserStats()
+      ])
+      setInitialLoading(false)
+    }
+    
+    loadInitialData()
+    
+    // Set up polling every 30 seconds for real-time updates (only after initial load)
+    // Reduced frequency to avoid constant reloading and improve performance
+    const setupPolling = () => {
+      pollingIntervalRef.current = setInterval(() => {
+        // Use ref to get current timePeriod value, not stale closure value
+        fetchAttractionsData(true, timePeriodRef.current)
+      }, 30000) // Update every 30 seconds
+      
+      // Set up polling for activities every 30 seconds
+      activitiesPollingRef.current = setInterval(() => {
+        fetchRecentActivities(true) // Skip loading state
+      }, 30000) // Update every 30 seconds
+      
+      // Set up polling for stats every 30 seconds
+      statsPollingRef.current = setInterval(() => {
+        fetchUserStats(true) // Skip loading state
+      }, 30000) // Update every 30 seconds
+    }
+    
+    // Setup polling after initial load (wait 2 seconds to avoid immediate reload)
+    const timeoutId = setTimeout(setupPolling, 2000)
+    
+    // Cleanup on unmount
+    return () => {
+      clearTimeout(timeoutId)
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current)
+        pollingIntervalRef.current = null
+      }
+      if (activitiesPollingRef.current) {
+        clearInterval(activitiesPollingRef.current)
+        activitiesPollingRef.current = null
+      }
+      if (statsPollingRef.current) {
+        clearInterval(statsPollingRef.current)
+        statsPollingRef.current = null
+      }
+    }
+  }, [])
+
+  if (initialLoading) {
+    return <DashboardSkeleton />
+  }
+
   return (
     <div className="container-fluid p-4 ">
       {/* Welcome */}
@@ -77,7 +254,11 @@ const Dashboard = () => {
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
                 <div className="text-muted small">Community Contributions</div>
-                <div className="display-6 fw-bold">7</div>
+                {loadingStats ? (
+                  <div className="skeleton-text" style={{ width: '40px', height: '48px' }}></div>
+                ) : (
+                  <div className="display-6 fw-bold">{userStats.postsCount}</div>
+                )}
               </div>
               <FiUser size={22} className="text-secondary" />
             </div>
@@ -102,42 +283,129 @@ const Dashboard = () => {
           <div className="card h-100 shadow-sm">
             <div className="card-body">
               <h6 className="fw-bold mb-3">Recent Activity</h6>
-              <ul className="list-group list-group-flush">
-                <li className="list-group-item d-flex justify-content-between">
-                  <span>Liked 'Hidden Gems of Hunza Valley' post</span>
-                  <small className="text-muted">2 hours ago</small>
-                </li>
-                <li className="list-group-item d-flex justify-content-between">
-                  <span>Saved 'Historical Lahore Fort' landmark</span>
-                  <small className="text-muted">Yesterday</small>
-                </li>
-                <li className="list-group-item d-flex justify-content-between">
-                  <span>Commented on 'Must-try Street Food in Karachi'</span>
-                  <small className="text-muted">3 days ago</small>
-                </li>
-                <li className="list-group-item d-flex justify-content-between">
-                  <span>Identified 'Faisal Mosque' in Islamabad</span>
-                  <small className="text-muted">5 days ago</small>
-                </li>
-              </ul>
+              {loadingActivities ? (
+                <div className="d-flex flex-column gap-2">
+                  {[1, 2, 3, 4, 5, 6].map(i => (
+                    <div key={i} className="d-flex justify-content-between align-items-center">
+                      <div className="skeleton-text" style={{ width: '70%', height: '16px' }}></div>
+                      <div className="skeleton-text" style={{ width: '80px', height: '14px' }}></div>
+                    </div>
+                  ))}
+                </div>
+              ) : activities.length > 0 ? (
+                <ul className="list-group list-group-flush">
+                  {activities.slice(0, 6).map((activity, index) => (
+                    <li key={index} className="list-group-item d-flex justify-content-between align-items-start">
+                      <div className="flex-grow-1">
+                        <span>{activity.description}</span>
+                      </div>
+                      <small className="text-muted ms-2" style={{ whiteSpace: 'nowrap' }}>
+                        {getTimeAgo(activity.timestamp)}
+                      </small>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-center py-4 text-muted">
+                  <p className="mb-0">No recent activity</p>
+                  <small>Your activities will appear here</small>
+                </div>
+              )}
             </div>
           </div>
         </div>
         <div className="col-12 col-xl-6">
           <div className="card h-100 shadow-sm">
             <div className="card-body">
-              <h6 className="fw-bold mb-3">Your Travel Progress</h6>
-              <div className="chart-placeholder rounded-3">
-                {/* Placeholder sparkline style chart; replace with real chart later */}
-                <svg viewBox="0 0 100 30" className="w-100" height="160">
-                  <polyline
-                    fill="none"
-                    stroke="#4F46E5"
-                    strokeWidth="2"
-                    points="0,20 10,22 20,14 30,14 40,26 50,10 60,18 70,16 80,8 90,10 100,12"
-                  />
-                </svg>
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h6 className="fw-bold mb-0">Community Participation</h6>
+                <select 
+                  className="form-select form-select-sm" 
+                  style={{ width: 'auto', minWidth: '140px' }}
+                  value={timePeriod}
+                  onChange={(e) => setTimePeriod(e.target.value)}
+                >
+                  <option value="7days">Last 7 Days</option>
+                  <option value="30days">Last 30 Days</option>
+                  <option value="12months">Last 12 Months</option>
+                  <option value="year">Last Year</option>
+                </select>
               </div>
+              {loadingAttractions ? (
+                <div className="skeleton-image" style={{ width: '100%', height: '280px', borderRadius: '8px' }}></div>
+              ) : (
+                <div style={{ width: '100%', height: '280px', minHeight: '280px' }}>
+                  {attractionsData && Array.isArray(attractionsData) && attractionsData.length > 0 ? (
+                    <ResponsiveContainer width="100%" height={280}>
+                      <LineChart data={attractionsData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e6" />
+                        <XAxis 
+                          dataKey="month" 
+                          tick={{ fontSize: 11 }}
+                          angle={-45}
+                          textAnchor="end"
+                          height={60}
+                        />
+                        <YAxis 
+                          tick={{ fontSize: 11 }}
+                          allowDecimals={false}
+                        />
+                        <Tooltip 
+                          contentStyle={{ 
+                            backgroundColor: '#fff', 
+                            border: '1px solid #ccc',
+                            borderRadius: '4px'
+                          }}
+                          labelStyle={{ fontWeight: 'bold' }}
+                        />
+                        <Legend />
+                        <Line 
+                          type="monotone" 
+                          dataKey="posts" 
+                          stroke="#4F46E5" 
+                          strokeWidth={2}
+                          dot={{ fill: '#4F46E5', r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="Posts"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="comments" 
+                          stroke="#10B981" 
+                          strokeWidth={2}
+                          dot={{ fill: '#10B981', r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="Comments"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="shares" 
+                          stroke="#F59E0B" 
+                          strokeWidth={2}
+                          dot={{ fill: '#F59E0B', r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="Shares"
+                        />
+                        <Line 
+                          type="monotone" 
+                          dataKey="total" 
+                          stroke="#EF4444" 
+                          strokeWidth={2}
+                          dot={{ fill: '#EF4444', r: 4 }}
+                          activeDot={{ r: 6 }}
+                          name="Total Participation"
+                          strokeDasharray="5 5"
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <div className="d-flex flex-column align-items-center justify-content-center" style={{ height: '280px' }}>
+                      <p className="mb-2 text-muted">No participation data available</p>
+                      <small className="text-muted">Community activity will appear here</small>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
