@@ -1,86 +1,237 @@
 .jtp-sidebar {
   width: 260px;
   min-height: 100vh;
-  position: sticky;
+  position: fixed;
   top: 70px;
+  left: 0;
   height: calc(100vh - 70px);
   align-self: flex-start;
   padding: 0.5rem;
+  z-index: 1000;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.jtp-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.jtp-sidebar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.jtp-sidebar::-webkit-scrollbar-thumb {
+  background: #dbdbdb;
+  border-radius: 3px;
+}
+
+.jtp-sidebar::-webkit-scrollbar-thumb:hover {
+  background: #b2b2b2;
+}
+
+/* Navbar Hamburger Button */
+.navbar-hamburger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 8px;
+  cursor: pointer;
+  margin-right: 12px;
+  transition: all 0.2s ease;
+}
+
+.navbar-hamburger:hover {
+  background: rgba(0, 0, 0, 0.05);
+  border-radius: 8px;
+}
+
+.navbar-hamburger:active {
+  transform: scale(0.95);
+}
+
+.hamburger-icon {
+  width: 24px;
+  height: 20px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.hamburger-icon span {
+  display: block;
+  height: 3px;
+  width: 100%;
+  background: #262626;
+  border-radius: 2px;
+  transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  transform-origin: center;
+}
+
+.hamburger-icon.open span:nth-child(1) {
+  transform: rotate(45deg) translate(8px, 8px);
+}
+
+.hamburger-icon.open span:nth-child(2) {
+  opacity: 0;
+  transform: scaleX(0);
+}
+
+.hamburger-icon.open span:nth-child(3) {
+  transform: rotate(-45deg) translate(8px, -8px);
+}
+
+/* Sidebar Overlay */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 70px;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 999;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (min-width: 992px) {
+  .navbar-hamburger {
+    display: none !important;
+  }
 }
 
 @media (max-width: 991.98px) {
+  /* Show overlay when sidebar is open */
+  .sidebar-overlay {
+    display: block;
+  }
+
+  /* Sidebar on mobile - fixed with slide animation */
   .jtp-sidebar {
-    width: 100%;
-    min-height: auto !important;
-    height: auto !important;
-    position: relative !important;
-    top: 0 !important;
+    width: 280px !important;
+    min-height: 100vh !important;
+    height: calc(100vh - 70px) !important;
+    position: fixed !important;
+    top: 70px !important;
+    left: -280px !important;
     margin: 0 !important;
     padding: 0 !important;
-    border-right: none !important;
+    border-right: 1px solid #dbdbdb !important;
+    z-index: 1000 !important;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 2px 0 12px rgba(0, 0, 0, 0.1);
   }
+
+  .jtp-sidebar.mobile-open {
+    left: 0 !important;
+  }
+
   .jtp-sidebar-header {
     margin: 0 !important;
-    padding: 0.75rem 1rem !important;
+    padding: 1rem 1.25rem !important;
     border-bottom: 1px solid #dee2e6;
     min-height: auto !important;
     height: auto !important;
+    display: flex !important;
+    align-items: center;
+    justify-content: space-between;
+    background: #fff;
   }
-  .jtp-sidebar #jtpSidebarCollapse.collapse:not(.show) {
-    display: none !important;
-    height: 0 !important;
-    min-height: 0 !important;
-    max-height: 0 !important;
-    overflow: hidden !important;
-    margin: 0 !important;
-    padding: 0 !important;
-    border: none !important;
-    visibility: hidden;
-    opacity: 0;
+
+  .sidebar-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #262626;
   }
-  .jtp-sidebar #jtpSidebarCollapse.collapse.show {
-    height: auto !important;
-    display: block !important;
+
+  .btn-close-sidebar {
+    background: transparent;
+    border: none;
+    color: #262626;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s;
+    width: 32px;
+    height: 32px;
   }
+
+  .btn-close-sidebar:hover {
+    background: #f5f5f5;
+    transform: rotate(90deg);
+  }
+
+  .jtp-sidebar-content {
+    padding: 0.5rem 0;
+    overflow-y: auto;
+    height: calc(100% - 60px);
+  }
+
   .jtp-layout {
     flex-direction: column;
     margin-top: 0 !important;
     padding-top: 0 !important;
   }
+
   .jtp-content {
     width: 100% !important;
     margin-top: 0 !important;
     padding-top: 0 !important;
+    margin-left: 0 !important;
     flex: 1;
   }
   
-  /* Fix Bootstrap collapse leaving space - completely hide collapsed content */
-  .collapse:not(.show) {
-    display: none !important;
-    height: 0 !important;
-    overflow: hidden !important;
-  }
-  /* Ensure collapsed sidebar takes minimal space - only header visible */
-  .jtp-sidebar:has(#jtpSidebarCollapse.collapse:not(.show)) {
-    height: auto !important;
-    min-height: auto !important;
-  }
-  
-  /* When sidebar is collapsed, ensure it doesn't add extra spacing */
-  .jtp-sidebar #jtpSidebarCollapse.collapse {
-    transition: height 0.35s ease;
-  }
-  
-  /* Remove any extra margins/padding from sidebar when collapsed */
   /* Remove padding from nav items on mobile */
   .jtp-sidebar .nav {
     padding: 0;
     margin: 0;
   }
   
-  /* Ensure sidebar background doesn't add visual space when collapsed */
-  .jtp-sidebar.bg-light {
-    background-color: #f8f9fa !important;
+  /* Ensure sidebar background */
+      .jtp-sidebar.bg-light {
+        background-color: #fff !important;
+      }
+    }
+
+/* Sidebar Unread Badge */
+.sidebar-unread-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  background: #dc3545;
+  color: #fff;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-left: auto;
+  line-height: 1;
+}
+
+@media (max-width: 575.98px) {
+  .jtp-sidebar {
+    width: 260px !important;
+    left: -260px !important;
+  }
+
+  .jtp-sidebar.mobile-open {
+    left: 0 !important;
   }
 }
 
@@ -96,10 +247,19 @@
 
 .jtp-layout {
   display: flex;
-  min-height: 100vh;
+ 
 }
 
 .jtp-content {
   flex: 1;
+  margin-left: 260px;
+  width: calc(100% - 260px);
+}
+
+@media (max-width: 991.98px) {
+  .jtp-content {
+    margin-left: 0;
+    width: 100%;
+  }
 }
 

@@ -40,6 +40,9 @@ export const updateMe = (data) => {
   if (data.profilePicture) fd.append("profilePicture", data.profilePicture);
   if (data.coverPhoto) fd.append("coverPhoto", data.coverPhoto);
   if (data.name) fd.append("name", data.name);
+  if (data.email) fd.append("email", data.email);
+  if (data.username) fd.append("username", data.username);
+  if (data.password) fd.append("password", data.password);
   if (data.city) fd.append("city", data.city);
   if (data.bio) fd.append("bio", data.bio);
   return api.put("/users/me", fd, { headers: { "Content-Type": "multipart/form-data" } });

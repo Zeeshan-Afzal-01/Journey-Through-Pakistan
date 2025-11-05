@@ -1,0 +1,167 @@
+/* Call Modal Styles */
+.call-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.95);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+}
+
+.call-modal-content {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.call-video-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  background: #000;
+}
+
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.local-video {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  width: 150px;
+  height: 200px;
+  border-radius: 12px;
+  border: 2px solid #fff;
+  object-fit: cover;
+  z-index: 10;
+}
+
+.call-user-info {
+  text-align: center;
+  color: #fff;
+  margin-bottom: 60px;
+}
+
+.call-avatar {
+  width: 150px;
+  height: 150px;
+  border-radius: 50%;
+  margin: 0 auto 24px;
+  overflow: hidden;
+  border: 4px solid #fff;
+}
+
+.call-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.call-avatar-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 60px;
+  color: #fff;
+  font-weight: bold;
+}
+
+.call-name {
+  font-size: 32px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: #fff;
+}
+
+.call-status {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.7);
+  margin: 0;
+}
+
+.call-controls {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 40px;
+}
+
+.call-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #fff;
+}
+
+.call-btn-answer {
+  background: #25d366;
+}
+
+.call-btn-answer:hover {
+  background: #20ba5a;
+  transform: scale(1.1);
+}
+
+.call-btn-reject,
+.call-btn-end {
+  background: #dc3545;
+}
+
+.call-btn-reject:hover,
+.call-btn-end:hover {
+  background: #c82333;
+  transform: scale(1.1);
+}
+
+.call-btn-off {
+  background: #6c757d;
+}
+
+.call-btn-off:hover {
+  background: #5a6268;
+}
+
+@media (max-width: 768px) {
+  .local-video {
+    width: 120px;
+    height: 160px;
+    top: 10px;
+    right: 10px;
+  }
+
+  .call-avatar {
+    width: 120px;
+    height: 120px;
+  }
+
+  .call-name {
+    font-size: 24px;
+  }
+
+  .call-btn {
+    width: 50px;
+    height: 50px;
+  }
+}
+
