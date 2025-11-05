@@ -309,3 +309,75 @@ export function DashboardSkeleton() {
   );
 }
 
+export function ChatListSkeleton() {
+  return (
+    <div className="px-3">
+      {[1, 2, 3, 4, 5, 6].map(i => (
+        <div key={i} className="d-flex align-items-center gap-3 py-3" style={{ borderBottom: '1px solid #efefef' }}>
+          <div className="skeleton-circle rounded-circle" style={{ width: 56, height: 56 }}></div>
+          <div className="flex-grow-1">
+            <div className="d-flex justify-content-between mb-2">
+              <div className="skeleton-text" style={{ width: '120px', height: '14px' }}></div>
+              <div className="skeleton-text" style={{ width: '40px', height: '12px' }}></div>
+            </div>
+            <div className="skeleton-text" style={{ width: '80%', height: '12px' }}></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ChatMessageSkeleton() {
+  return (
+    <div className="d-flex flex-column h-100">
+      {/* Header Skeleton */}
+      <div className="chat-header d-flex align-items-center justify-content-between px-4 py-3">
+        <div className="d-flex align-items-center gap-3">
+          <div className="skeleton-circle rounded-circle" style={{ width: 40, height: 40 }}></div>
+          <div>
+            <div className="skeleton-text mb-1" style={{ width: '100px', height: '16px' }}></div>
+            <div className="skeleton-text" style={{ width: '70px', height: '12px' }}></div>
+          </div>
+        </div>
+        <div className="d-flex gap-2">
+          <div className="skeleton-circle" style={{ width: 24, height: 24 }}></div>
+          <div className="skeleton-circle" style={{ width: 24, height: 24 }}></div>
+          <div className="skeleton-circle" style={{ width: 24, height: 24 }}></div>
+        </div>
+      </div>
+
+      {/* Messages Skeleton */}
+      <div className="chat-thread flex-grow-1 px-4 py-3">
+        {[1, 2, 3, 4, 5].map(i => {
+          const widths = [200, 180, 220, 160, 190];
+          return (
+            <div key={i} className={`mb-3 ${i % 2 === 0 ? 'text-end' : ''}`}>
+              <div 
+                className="skeleton-text d-inline-block" 
+                style={{ 
+                  width: `${widths[i - 1]}px`, 
+                  height: '40px', 
+                  borderRadius: '18px',
+                  maxWidth: '70%'
+                }}
+              ></div>
+              <div className="skeleton-text mt-1" style={{ width: '50px', height: '10px', marginLeft: i % 2 === 0 ? 'auto' : '0', marginRight: i % 2 === 0 ? '0' : 'auto' }}></div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Input Skeleton */}
+      <div className="chat-input px-4 py-3">
+        <div className="d-flex align-items-center gap-2">
+          <div className="skeleton-circle" style={{ width: 32, height: 32 }}></div>
+          <div className="skeleton-circle" style={{ width: 32, height: 32 }}></div>
+          <div className="skeleton-text flex-grow-1" style={{ height: '40px', borderRadius: '20px' }}></div>
+          <div className="skeleton-circle" style={{ width: 32, height: 32 }}></div>
+        </div>
+      </div>
+    </div>
+  );
+}
+

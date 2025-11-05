@@ -1,18 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { FiBell } from 'react-icons/fi'
 import logoImg from '../images/download.jpeg'
 import { listNotifications } from '../api/notificationsApi.jsx'
 import { toast } from 'react-toastify'
+import '../assests/css/sidebar.css'
+import '../assests/css/customStyle.css'
 
 export default function navbar() {
   const [isOpen, setIsOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const dropdownRef = useRef(null)
   const bellRef = useRef(null)
   const { isAuthenticated, user, handleLogout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [notifications, setNotifications] = useState([])
   const [unreadCount, setUnreadCount] = useState(0)
   const notificationSoundRef = useRef(null)
@@ -86,7 +90,8 @@ export default function navbar() {
     }
     try {
       const res = await listNotifications()
-      const items = Array.isArray(res.data) ? res.data : []
+      // Filter out message type notifications - messages are handled via Socket.IO and unread badges
+      const items = Array.isArray(res.data) ? res.data.filter(n => n.type !== 'message') : []
       const currentUnreadCount = items.filter(n => !n.readAt).length
       
       // Find new notifications that weren't in the previous list
@@ -214,35 +219,95 @@ export default function navbar() {
     if (userId) navigate(`/profile?userId=${userId}`)
   }
 
+  // Listen for sidebar state changes to update hamburger animation
+  useEffect(() => {
+    const handleSidebarStateChange = (event) => {
+      setSidebarOpen(event.detail.isOpen);
+    };
+
+    window.addEventListener('sidebarStateChange', handleSidebarStateChange);
+    return () => {
+      window.removeEventListener('sidebarStateChange', handleSidebarStateChange);
+    };
+  }, []);
+
+  const toggleSidebar = () => {
+    window.dispatchEvent(new CustomEvent('toggleSidebar'));
+  };
+
   return (
     <div className='navbar-container'>
       <nav className="navbar navbar-expand-lg navbar-light bg-light fixed-top">
         <div className="container-fluid">
-          <a className="navbar-brand d-flex align-items-center gap-2" href="#">
-            <img src={logoImg} alt="JTP" width="36" height="36" className="rounded-circle object-fit-cover" />
-            <span className="fw-semibold">Journey Through Pakistan</span>
-          </a>
-
-          <button className="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#jtpNavbar" aria-controls="jtpNavbar" aria-expanded="false" aria-label="Toggle navigation">
-            <span className="navbar-toggler-icon"></span>
+          {/* Left Side - Hamburger Menu (only show on mobile) */}
+          <button
+            className="navbar-hamburger d-lg-none"
+            onClick={toggleSidebar}
+            aria-label="Toggle sidebar"
+          >
+            <div className={`hamburger-icon ${sidebarOpen ? 'open' : ''}`}>
+              <span></span>
+              <span></span>
+              <span></span>
+            </div>
           </button>
 
-          <div className="collapse navbar-collapse" id="jtpNavbar">
-            <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+          {/* Brand Name - Left on desktop, Center on mobile */}
+          <a 
+            className="navbar-brand navbar-brand-custom d-flex align-items-center gap-2" 
+            href="#"
+            style={{
+              ...(window.innerWidth <= 991.98 ? {
+                position: 'absolute',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                marginLeft: 0,
+                marginRight: 0,
+                zIndex: 10
+              } : {})
+            }}
+          >
+            <img src={logoImg} alt="JTP" width="36" height="36" className="rounded-circle object-fit-cover d-none d-md-block" />
+            <span className="fw-semibold d-none d-lg-inline">Journey Through Pakistan</span>
+            <span className="fw-semibold d-lg-none">JTP</span>
+          </a>
+
+          {/* Navigation Menu - Only visible on desktop */}
+          {isAuthenticated && (
+            <ul className="navbar-nav d-none d-lg-flex">
               <li className="nav-item">
-                <a className="nav-link active" aria-current="page" href="/dashboard">Dashboard</a>
+                <Link 
+                  className={`nav-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
+                  to="/dashboard"
+                >
+                  Dashboard
+                </Link>
               </li>
               <li className="nav-item">
-                <a className="nav-link" href="/recommendations">Recommendations</a>
+                <Link 
+                  className={`nav-link ${location.pathname === '/community' || location.pathname.startsWith('/community') ? 'active' : ''}`}
+                  to="/community"
+                >
+                  Community
+                </Link>
               </li>
               <li className="nav-item">
-                <a className="nav-link" href="/community">Community</a>
+                <Link 
+                  className={`nav-link ${location.pathname === '/recommendations' ? 'active' : ''}`}
+                  to="/recommendations"
+                >
+                  Recommendations
+                </Link>
               </li>
             </ul>
-            {showProfileImage ?
-            <div className="ms-auto d-flex align-items-center gap-2">
-              {/* Bell dropdown */}
-              <div className={`dropdown position-relative ${bellOpen ? 'show' : ''}`} ref={bellRef}>
+          )}
+
+          {/* Right Side - Navbar Options */}
+          <div className="d-flex align-items-center gap-2 ms-auto">
+            {showProfileImage ? (
+              <>
+                {/* Bell dropdown */}
+                <div className={`dropdown position-relative ${bellOpen ? 'show' : ''}`} ref={bellRef}>
                 <button type="button" className="btn btn-outline-secondary rounded-circle d-flex align-items-center justify-content-center position-relative" style={{ width: 40, height: 40 }} onClick={() => setBellOpen(v=>!v)} aria-haspopup="true" aria-expanded={bellOpen}>
                   <FiBell/>
                   {unreadCount > 0 ? (
@@ -294,14 +359,20 @@ export default function navbar() {
                   <img src={`http://localhost:3000/${user?.profilePicture}` || "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6pG71SAo6x_xIn_DgRMLKsFMEwMgc6k1DAg&s"} alt="Profile" className="rounded-circle" style={{ width: 40, height: 40, objectFit: 'cover' }} />
                 </button>
                 <ul className={`dropdown-menu dropdown-menu-end ${isOpen ? 'show' : ''}`} style={{ right: 0, left: 'auto' }}>
-                  <li><a className="dropdown-item" href="/profile">Profile</a></li>
-                  <li><a className="dropdown-item" href="#">Settings</a></li>
+                  <li>
+                    <Link className="dropdown-item" to="/profile" onClick={() => setIsOpen(false)}>Profile</Link>
+                  </li>
+                  <li>
+                    <Link className="dropdown-item" to="/settings" onClick={() => setIsOpen(false)}>Settings</Link>
+                  </li>
                   <li><hr className="dropdown-divider" /></li>
-                  <li><a className="dropdown-item text-danger" onClick={handleLogout} href="#">Logout</a></li>
+                  <li>
+                    <a className="dropdown-item text-danger" onClick={(e) => { e.preventDefault(); setIsOpen(false); handleLogout(); }} href="#">Logout</a>
+                  </li>
                 </ul>
               </div>
-            </div>:null}
-            
+              </>
+            ) : null}
           </div>
         </div>
       </nav>

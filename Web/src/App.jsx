@@ -1,5 +1,6 @@
 // src/App.jsx
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { SocketProvider } from "./context/SocketContext";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import SignupPage from "./pages/SignupPage";
 import LoginPage from "./pages/LoginPage";
@@ -18,6 +19,7 @@ import Notifications from "./pages/Notifications";
 import Search from "./pages/Search";
 import GroupDetail from "./pages/GroupDetail";
 import SavedPosts from "./pages/SavedPosts";
+import Settings from "./pages/Settings";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -30,8 +32,9 @@ function ProtectedRoute({ children }) {
 function App() {
   return (
     <AuthProvider>
-      {/* Router enables navigation between pages */}
-      <Router>
+      <SocketProvider>
+        {/* Router enables navigation between pages */}
+        <Router>
         <Navbar/>
         <Routes>
           {/* Signup Page */}
@@ -85,7 +88,7 @@ function App() {
               <ProtectedRoute>
                 <div className="jtp-layout">
                   <Sidebar />
-                  <main className="jtp-content p-3">
+                  <main className="jtp-content">
                     <Chats />
                   </main>
                 </div>
@@ -196,6 +199,19 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <div className="jtp-layout">
+                  <Sidebar />
+                  <main className="jtp-content p-3">
+                    <Settings />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Login Page */}
           <Route path="/login" element={<LoginPage />} />
@@ -217,6 +233,7 @@ function App() {
           style={{ marginTop: '70px' }}
         />
       </Router>
+      </SocketProvider>
     </AuthProvider>
   );
 }

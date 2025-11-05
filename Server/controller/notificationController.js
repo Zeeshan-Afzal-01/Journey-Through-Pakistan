@@ -4,7 +4,11 @@ export const listMyNotifications = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    const notifications = await Notification.find({ recipient: userId })
+    // Exclude message type notifications - messages are handled via Socket.IO and unread badges
+    const notifications = await Notification.find({ 
+      recipient: userId,
+      type: { $ne: 'message' } // Exclude message type notifications
+    })
       .sort({ createdAt: -1 })
       .populate("actor", "name profilePicture")
       .populate("post", "_id")

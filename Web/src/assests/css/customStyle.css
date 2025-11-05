@@ -8,6 +8,107 @@ border-radius: 0px 0px 0px 0px;
 box-shadow: 0px 0px 1px #171a1f12, 0px 0px 2px #171a1f1F;
 z-index: 1030; /* above content, similar to Bootstrap navbar */
 }
+
+/* Navbar Brand Styling */
+.navbar .navbar-brand.navbar-brand-custom {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Desktop: Left side */
+@media (min-width: 992px) {
+  .navbar .container-fluid {
+    display: flex !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    position: relative;
+  }
+
+  .navbar .navbar-brand.navbar-brand-custom {
+    position: static !important;
+    left: auto !important;
+    right: auto !important;
+    transform: none !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    flex-shrink: 0;
+  }
+
+  .navbar-nav {
+    position: static !important;
+    margin-left: 2rem !important;
+    margin-right: auto !important;
+    transform: none !important;
+  }
+}
+
+/* Mobile: Center */
+@media (max-width: 991.98px) {
+  .navbar-container .navbar .container-fluid {
+    position: relative !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+  }
+  
+  .navbar-container .navbar.navbar-expand-lg .navbar-brand.navbar-brand-custom,
+  .navbar .navbar-brand.navbar-brand-custom {
+    position: absolute !important;
+    left: 50% !important;
+    right: auto !important;
+    top: 50% !important;
+    bottom: auto !important;
+    transform: translate(-50%, -50%) !important;
+    -webkit-transform: translate(-50%, -50%) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+    z-index: 10 !important;
+    width: auto !important;
+    padding: 0.3125rem 0 !important;
+    display: flex !important;
+    align-items: center !important;
+  }
+}
+
+/* Navbar Navigation Links - Desktop Only */
+@media (min-width: 992px) {
+  .navbar-nav {
+    display: flex !important;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .navbar-nav .nav-link {
+    color: #262626;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    transition: all 0.2s;
+    border-radius: 6px;
+    text-decoration: none;
+  }
+
+  .navbar-nav .nav-link:hover {
+    color: #3897f0;
+   
+  }
+
+  .navbar-nav .nav-link.active {
+    color: #3897f0;
+    font-weight: 600;
+    
+  }
+}
+
+/* Hide navigation on mobile */
+@media (max-width: 991.98px) {
+  .navbar-nav {
+    display: none !important;
+  }
+}
+
 .navbar-companyname {
 position: absolute;
 top: 17px;

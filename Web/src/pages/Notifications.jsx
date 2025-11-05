@@ -19,11 +19,13 @@ export default function Notifications() {
       if (!loading) {
         // Only show loading on initial fetch
         const res = await listNotifications()
-        setItems(Array.isArray(res.data) ? res.data : [])
+        // Filter out message type notifications - messages are handled via Socket.IO and unread badges
+        setItems(Array.isArray(res.data) ? res.data.filter(n => n.type !== 'message') : [])
       } else {
         setLoading(true)
         const res = await listNotifications()
-        setItems(Array.isArray(res.data) ? res.data : [])
+        // Filter out message type notifications - messages are handled via Socket.IO and unread badges
+        setItems(Array.isArray(res.data) ? res.data.filter(n => n.type !== 'message') : [])
         setLoading(false)
       }
     } catch (error) {
