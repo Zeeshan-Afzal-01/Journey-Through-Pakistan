@@ -1,4 +1,21 @@
 import Status from "../models/status.models.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper function to check if profile picture file exists
+const checkProfilePictureExists = (profilePicturePath) => {
+  if (!profilePicturePath) return false;
+  try {
+    const fullPath = path.join(__dirname, "..", profilePicturePath);
+    return fs.existsSync(fullPath);
+  } catch (error) {
+    return false;
+  }
+};
 
 export const createStatus = async (req, res) => {
   try {
@@ -16,7 +33,14 @@ export const createStatus = async (req, res) => {
 
     const status = await Status.create({ author: userId, mediaUrl, caption, expiresAt });
     const populated = await status.populate("author", "name profilePicture");
-    res.status(201).json(populated);
+    
+    // Add hasProfilePicture to author
+    const statusObj = populated.toObject ? populated.toObject() : populated;
+    if (statusObj.author) {
+      statusObj.author.hasProfilePicture = checkProfilePictureExists(statusObj.author.profilePicture);
+    }
+    
+    res.status(201).json(statusObj);
   } catch (err) {
     res.status(500).json({ message: "Failed to create status", error: err.message });
   }
@@ -32,7 +56,38 @@ export const listActiveStatuses = async (req, res) => {
       .populate("reactions.user", "name profilePicture")
       .populate("messages.author", "name profilePicture")
       .lean();
-    res.json(statuses);
+    
+    // Add hasProfilePicture to all populated users
+    const statusesWithPictureCheck = statuses.map(status => {
+      if (status.author) {
+        status.author.hasProfilePicture = checkProfilePictureExists(status.author.profilePicture);
+      }
+      if (status.views && Array.isArray(status.views)) {
+        status.views = status.views.map(view => {
+          view.hasProfilePicture = checkProfilePictureExists(view.profilePicture);
+          return view;
+        });
+      }
+      if (status.reactions && Array.isArray(status.reactions)) {
+        status.reactions = status.reactions.map(reaction => {
+          if (reaction.user) {
+            reaction.user.hasProfilePicture = checkProfilePictureExists(reaction.user.profilePicture);
+          }
+          return reaction;
+        });
+      }
+      if (status.messages && Array.isArray(status.messages)) {
+        status.messages = status.messages.map(message => {
+          if (message.author) {
+            message.author.hasProfilePicture = checkProfilePictureExists(message.author.profilePicture);
+          }
+          return message;
+        });
+      }
+      return status;
+    });
+    
+    res.json(statusesWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch statuses", error: err.message });
   }
@@ -49,7 +104,38 @@ export const getUserStatuses = async (req, res) => {
       .populate("reactions.user", "name profilePicture")
       .populate("messages.author", "name profilePicture")
       .lean();
-    res.json(statuses);
+    
+    // Add hasProfilePicture to all populated users
+    const statusesWithPictureCheck = statuses.map(status => {
+      if (status.author) {
+        status.author.hasProfilePicture = checkProfilePictureExists(status.author.profilePicture);
+      }
+      if (status.views && Array.isArray(status.views)) {
+        status.views = status.views.map(view => {
+          view.hasProfilePicture = checkProfilePictureExists(view.profilePicture);
+          return view;
+        });
+      }
+      if (status.reactions && Array.isArray(status.reactions)) {
+        status.reactions = status.reactions.map(reaction => {
+          if (reaction.user) {
+            reaction.user.hasProfilePicture = checkProfilePictureExists(reaction.user.profilePicture);
+          }
+          return reaction;
+        });
+      }
+      if (status.messages && Array.isArray(status.messages)) {
+        status.messages = status.messages.map(message => {
+          if (message.author) {
+            message.author.hasProfilePicture = checkProfilePictureExists(message.author.profilePicture);
+          }
+          return message;
+        });
+      }
+      return status;
+    });
+    
+    res.json(statusesWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch user statuses", error: err.message });
   }
@@ -97,7 +183,40 @@ export const addReaction = async (req, res) => {
       .populate("reactions.user", "name profilePicture")
       .populate("messages.author", "name profilePicture");
     
-    res.json(populated);
+    // Add hasProfilePicture to all populated users
+    const statusObj = populated.toObject ? populated.toObject() : populated;
+    if (statusObj.author) {
+      statusObj.author.hasProfilePicture = checkProfilePictureExists(statusObj.author.profilePicture);
+    }
+    if (statusObj.views && Array.isArray(statusObj.views)) {
+      statusObj.views = statusObj.views.map(view => {
+        const viewObj = view.toObject ? view.toObject() : view;
+        viewObj.hasProfilePicture = checkProfilePictureExists(viewObj.profilePicture);
+        return viewObj;
+      });
+    }
+    if (statusObj.reactions && Array.isArray(statusObj.reactions)) {
+      statusObj.reactions = statusObj.reactions.map(reaction => {
+        if (reaction.user) {
+          const userObj = reaction.user.toObject ? reaction.user.toObject() : reaction.user;
+          userObj.hasProfilePicture = checkProfilePictureExists(userObj.profilePicture);
+          reaction.user = userObj;
+        }
+        return reaction;
+      });
+    }
+    if (statusObj.messages && Array.isArray(statusObj.messages)) {
+      statusObj.messages = statusObj.messages.map(message => {
+        if (message.author) {
+          const authorObj = message.author.toObject ? message.author.toObject() : message.author;
+          authorObj.hasProfilePicture = checkProfilePictureExists(authorObj.profilePicture);
+          message.author = authorObj;
+        }
+        return message;
+      });
+    }
+    
+    res.json(statusObj);
   } catch (err) {
     res.status(500).json({ message: "Failed to add reaction", error: err.message });
   }
@@ -121,7 +240,40 @@ export const removeReaction = async (req, res) => {
       .populate("reactions.user", "name profilePicture")
       .populate("messages.author", "name profilePicture");
     
-    res.json(populated);
+    // Add hasProfilePicture to all populated users
+    const statusObj = populated.toObject ? populated.toObject() : populated;
+    if (statusObj.author) {
+      statusObj.author.hasProfilePicture = checkProfilePictureExists(statusObj.author.profilePicture);
+    }
+    if (statusObj.views && Array.isArray(statusObj.views)) {
+      statusObj.views = statusObj.views.map(view => {
+        const viewObj = view.toObject ? view.toObject() : view;
+        viewObj.hasProfilePicture = checkProfilePictureExists(viewObj.profilePicture);
+        return viewObj;
+      });
+    }
+    if (statusObj.reactions && Array.isArray(statusObj.reactions)) {
+      statusObj.reactions = statusObj.reactions.map(reaction => {
+        if (reaction.user) {
+          const userObj = reaction.user.toObject ? reaction.user.toObject() : reaction.user;
+          userObj.hasProfilePicture = checkProfilePictureExists(userObj.profilePicture);
+          reaction.user = userObj;
+        }
+        return reaction;
+      });
+    }
+    if (statusObj.messages && Array.isArray(statusObj.messages)) {
+      statusObj.messages = statusObj.messages.map(message => {
+        if (message.author) {
+          const authorObj = message.author.toObject ? message.author.toObject() : message.author;
+          authorObj.hasProfilePicture = checkProfilePictureExists(authorObj.profilePicture);
+          message.author = authorObj;
+        }
+        return message;
+      });
+    }
+    
+    res.json(statusObj);
   } catch (err) {
     res.status(500).json({ message: "Failed to remove reaction", error: err.message });
   }

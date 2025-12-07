@@ -157,7 +157,15 @@ export default function Search() {
                   <div className="d-flex flex-column gap-2">
                     {filteredUsers.map(u => (
                       <div key={u._id} className="d-flex align-items-center gap-2" >
-                        <img className="rounded-circle" style={{ width: 40, height: 40, objectFit: 'cover' }}  src={u.profilePicture ? `http://localhost:3000/${u.profilePicture}` : '/default-avatar.png'} />
+                        <img 
+                          className="rounded-circle" 
+                          style={{ width: 40, height: 40, objectFit: 'cover' }}  
+                          src={
+                            u.hasProfilePicture && u.profilePicture 
+                              ? `http://localhost:3000/${u.profilePicture}` 
+                              : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                          } 
+                        />
                         <div className="flex-grow-1">
                           <div className="small fw-semibold">{u.name}</div>
                           <div className="xsmall text-muted">{u.email}</div>
@@ -180,7 +188,15 @@ export default function Search() {
                     {filteredPosts.map(p => (
                       <div key={p._id} className="border rounded p-2">
                         <div className="d-flex align-items-center gap-2 mb-1">
-                          <img className="rounded-circle" style={{ width: 28, height: 28, objectFit: 'cover' }} src={p.author?.profilePicture ? `http://localhost:3000/${p.author.profilePicture}` : '/default-avatar.png'} />
+                          <img 
+                            className="rounded-circle" 
+                            style={{ width: 28, height: 28, objectFit: 'cover' }} 
+                            src={
+                              p.author?.hasProfilePicture && p.author?.profilePicture 
+                                ? `http://localhost:3000/${p.author.profilePicture}` 
+                                : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                            } 
+                          />
                           <div className="small">{p.author?.name} {p.place ? `• ${p.place}` : ''}</div>
                         </div>
                         <div className="small mb-1">{p.text}</div>

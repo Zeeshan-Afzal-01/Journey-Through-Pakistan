@@ -1,6 +1,50 @@
 import Group from "../models/group.models.js";
 import Post from "../models/post.models.js";
 import User from "../models/user.models.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper function to check if profile picture file exists
+const checkProfilePictureExists = (profilePicturePath) => {
+  if (!profilePicturePath) return false;
+  try {
+    const fullPath = path.join(__dirname, "..", profilePicturePath);
+    return fs.existsSync(fullPath);
+  } catch (error) {
+    return false;
+  }
+};
+
+// Helper function to add hasProfilePicture to populated users
+const addProfilePictureStatus = (group) => {
+  const groupObj = group.toObject ? group.toObject() : group;
+  
+  if (groupObj.admin) {
+    groupObj.admin.hasProfilePicture = checkProfilePictureExists(groupObj.admin.profilePicture);
+  }
+  
+  if (groupObj.members && Array.isArray(groupObj.members)) {
+    groupObj.members = groupObj.members.map(member => {
+      const memberObj = member.toObject ? member.toObject() : member;
+      memberObj.hasProfilePicture = checkProfilePictureExists(memberObj.profilePicture);
+      return memberObj;
+    });
+  }
+  
+  if (groupObj.pendingRequests && Array.isArray(groupObj.pendingRequests)) {
+    groupObj.pendingRequests = groupObj.pendingRequests.map(req => {
+      const reqObj = req.toObject ? req.toObject() : req;
+      reqObj.hasProfilePicture = checkProfilePictureExists(reqObj.profilePicture);
+      return reqObj;
+    });
+  }
+  
+  return groupObj;
+};
 
 // Create a new group
 export const createGroup = async (req, res) => {
@@ -30,7 +74,8 @@ export const createGroup = async (req, res) => {
     await group.populate("admin", "name profilePicture");
     await group.populate("members", "name profilePicture");
 
-    res.status(201).json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.status(201).json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to create group", error: err.message });
   }
@@ -66,9 +111,11 @@ export const listGroups = async (req, res) => {
     const groups = await Group.find(query)
       .populate("admin", "name profilePicture")
       .populate("members", "name profilePicture")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json(groups);
+    const groupsWithStatus = groups.map(group => addProfilePictureStatus(group));
+    res.json(groupsWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch groups", error: err.message });
   }
@@ -106,7 +153,8 @@ export const getGroup = async (req, res) => {
       }
     }
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch group", error: err.message });
   }
@@ -141,7 +189,8 @@ export const updateGroup = async (req, res) => {
     await group.populate("admin", "name profilePicture");
     await group.populate("members", "name profilePicture");
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to update group", error: err.message });
   }
@@ -207,7 +256,8 @@ export const joinGroup = async (req, res) => {
       await group.populate("pendingRequests", "name profilePicture");
     }
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to join group", error: err.message });
   }
@@ -252,9 +302,11 @@ export const getMyGroups = async (req, res) => {
     const groups = await Group.find({ members: userId })
       .populate("admin", "name profilePicture")
       .populate("members", "name profilePicture")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json(groups);
+    const groupsWithStatus = groups.map(group => addProfilePictureStatus(group));
+    res.json(groupsWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch your groups", error: err.message });
   }
@@ -287,9 +339,34 @@ export const getGroupPosts = async (req, res) => {
         select: "name profilePicture city",
       })
       .populate("group", "name")
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    res.json(posts);
+    // Add hasProfilePicture to post authors and comment authors
+    const postsWithStatus = posts.map(post => {
+      if (post.author) {
+        post.author.hasProfilePicture = checkProfilePictureExists(post.author.profilePicture);
+      }
+      if (post.comments && Array.isArray(post.comments)) {
+        post.comments = post.comments.map(comment => {
+          if (comment.author) {
+            comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+          }
+          if (comment.replies && Array.isArray(comment.replies)) {
+            comment.replies = comment.replies.map(reply => {
+              if (reply.author) {
+                reply.author.hasProfilePicture = checkProfilePictureExists(reply.author.profilePicture);
+              }
+              return reply;
+            });
+          }
+          return comment;
+        });
+      }
+      return post;
+    });
+
+    res.json(postsWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch group posts", error: err.message });
   }
@@ -384,7 +461,8 @@ export const addMember = async (req, res) => {
       await group.populate("pendingRequests", "name profilePicture");
     }
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to add member", error: err.message });
   }
@@ -419,7 +497,8 @@ export const removeMember = async (req, res) => {
       await group.populate("pendingRequests", "name profilePicture");
     }
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to remove member", error: err.message });
   }
@@ -463,7 +542,8 @@ export const approveJoinRequest = async (req, res) => {
       await group.populate("pendingRequests", "name profilePicture");
     }
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to approve request", error: err.message });
   }
@@ -494,7 +574,8 @@ export const declineJoinRequest = async (req, res) => {
       await group.populate("pendingRequests", "name profilePicture");
     }
 
-    res.json(group);
+    const groupWithStatus = addProfilePictureStatus(group);
+    res.json(groupWithStatus);
   } catch (err) {
     res.status(500).json({ message: "Failed to decline request", error: err.message });
   }

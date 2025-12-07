@@ -3,6 +3,23 @@ import Notification from "../models/notification.models.js";
 import User from "../models/user.models.js";
 import Hashtag from "../models/hashtag.models.js";
 import mongoose from "mongoose";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper function to check if profile picture file exists
+const checkProfilePictureExists = (profilePicturePath) => {
+  if (!profilePicturePath) return false;
+  try {
+    const fullPath = path.join(__dirname, "..", profilePicturePath);
+    return fs.existsSync(fullPath);
+  } catch (error) {
+    return false;
+  }
+};
 
 function extractHashtags(text) {
   if (!text) return [];
@@ -93,7 +110,22 @@ export const createPost = async (req, res) => {
     const populated = await Post.findById(post._id)
       .populate("author", "name profilePicture city")
       .populate("group", "name")
-      .populate("taggedUsers", "name profilePicture");
+      .populate("taggedUsers", "name profilePicture")
+      .lean();
+    
+    // Add hasProfilePicture to author
+    if (populated && populated.author) {
+      populated.author.hasProfilePicture = checkProfilePictureExists(populated.author.profilePicture);
+    }
+    
+    // Add hasProfilePicture to taggedUsers
+    if (populated && populated.taggedUsers && Array.isArray(populated.taggedUsers)) {
+      populated.taggedUsers = populated.taggedUsers.map(user => {
+        user.hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+        return user;
+      });
+    }
+    
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to create post", error: err.message });
@@ -126,7 +158,38 @@ export const listPosts = async (req, res) => {
     const out = [];
     for (let p of posts) {
       const obj = p.toObject();
+      
+      // Add hasProfilePicture to author
+      if (obj.author) {
+        obj.author.hasProfilePicture = checkProfilePictureExists(obj.author.profilePicture);
+      }
+      
+      // Add hasProfilePicture to tagged users
+      if (obj.taggedUsers && Array.isArray(obj.taggedUsers)) {
+        obj.taggedUsers = obj.taggedUsers.map(taggedUser => ({
+          ...taggedUser,
+          hasProfilePicture: checkProfilePictureExists(taggedUser.profilePicture)
+        }));
+      }
+      
       await populateRepliesAuthors(obj.comments);
+      
+      // Add hasProfilePicture to comment authors and reply authors
+      if (obj.comments && Array.isArray(obj.comments)) {
+        const addHasProfilePictureToComments = (comments) => {
+          if (!comments || !Array.isArray(comments)) return;
+          comments.forEach(comment => {
+            if (comment.author) {
+              comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+            }
+            if (comment.replies && Array.isArray(comment.replies)) {
+              addHasProfilePictureToComments(comment.replies);
+            }
+          });
+        };
+        addHasProfilePictureToComments(obj.comments);
+      }
+      
       out.push(obj);
     }
     res.json(out);
@@ -186,6 +249,37 @@ export const getPost = async (req, res) => {
     // Populate nested replies
     if (post.comments && post.comments.length > 0) {
       await populateRepliesAuthors(post.comments);
+    }
+    
+    // Add hasProfilePicture to author
+    if (post.author) {
+      post.author.hasProfilePicture = checkProfilePictureExists(post.author.profilePicture);
+    }
+    
+    // Add hasProfilePicture to taggedUsers
+    if (post.taggedUsers && Array.isArray(post.taggedUsers)) {
+      post.taggedUsers = post.taggedUsers.map(user => {
+        user.hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+        return user;
+      });
+    }
+    
+    // Add hasProfilePicture to comment authors
+    if (post.comments && Array.isArray(post.comments)) {
+      post.comments = post.comments.map(comment => {
+        if (comment.author) {
+          comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+        }
+        if (comment.replies && Array.isArray(comment.replies)) {
+          comment.replies = comment.replies.map(reply => {
+            if (reply.author) {
+              reply.author.hasProfilePicture = checkProfilePictureExists(reply.author.profilePicture);
+            }
+            return reply;
+          });
+        }
+        return comment;
+      });
     }
     
     res.json(post);
@@ -297,7 +391,38 @@ export const toggleLike = async (req, res) => {
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     populated = populated ? populated.toObject() : null;
-    if (populated) await populateRepliesAuthors(populated.comments);
+    if (populated) {
+      await populateRepliesAuthors(populated.comments);
+      
+      // Add hasProfilePicture to author
+      if (populated.author) {
+        populated.author.hasProfilePicture = checkProfilePictureExists(populated.author.profilePicture);
+      }
+      
+      // Add hasProfilePicture to taggedUsers
+      if (populated.taggedUsers && Array.isArray(populated.taggedUsers)) {
+        populated.taggedUsers = populated.taggedUsers.map(user => {
+          user.hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+          return user;
+        });
+      }
+      
+      // Add hasProfilePicture to comment authors
+      if (populated.comments && Array.isArray(populated.comments)) {
+        const addHasProfilePictureToComments = (comments) => {
+          if (!comments || !Array.isArray(comments)) return;
+          comments.forEach(comment => {
+            if (comment.author) {
+              comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+            }
+            if (comment.replies && Array.isArray(comment.replies)) {
+              addHasProfilePictureToComments(comment.replies);
+            }
+          });
+        };
+        addHasProfilePictureToComments(populated.comments);
+      }
+    }
     res.json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to like post", error: err.message });
@@ -359,11 +484,43 @@ export const addComment = async (req, res) => {
     }
     let populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
+      .populate("group", "name")
       .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     populated = populated ? populated.toObject() : null;
-    if (populated) await populateRepliesAuthors(populated.comments);
+    if (populated) {
+      await populateRepliesAuthors(populated.comments);
+      
+      // Add hasProfilePicture to author
+      if (populated.author) {
+        populated.author.hasProfilePicture = checkProfilePictureExists(populated.author.profilePicture);
+      }
+      
+      // Add hasProfilePicture to taggedUsers
+      if (populated.taggedUsers && Array.isArray(populated.taggedUsers)) {
+        populated.taggedUsers = populated.taggedUsers.map(user => {
+          user.hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+          return user;
+        });
+      }
+      
+      // Add hasProfilePicture to comment authors
+      if (populated.comments && Array.isArray(populated.comments)) {
+        const addHasProfilePictureToComments = (comments) => {
+          if (!comments || !Array.isArray(comments)) return;
+          comments.forEach(comment => {
+            if (comment.author) {
+              comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+            }
+            if (comment.replies && Array.isArray(comment.replies)) {
+              addHasProfilePictureToComments(comment.replies);
+            }
+          });
+        };
+        addHasProfilePictureToComments(populated.comments);
+      }
+    }
     res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to add comment", error: err.message });
@@ -392,7 +549,51 @@ export const sharePost = async (req, res) => {
 
     const populated = await Post.findById(id)
       .populate("author", "name profilePicture city")
+      .populate("group", "name")
+      .populate({ path: "comments.author", select: "name profilePicture city" })
+      .populate({ path: "comments.replies.author", select: "name profilePicture city" })
       .lean();
+    
+    if (!populated) {
+      return res.status(404).json({ message: "Post not found" });
+    }
+    
+    // Populate nested replies
+    if (populated.comments && populated.comments.length > 0) {
+      await populateRepliesAuthors(populated.comments);
+    }
+    
+    // Add hasProfilePicture to author
+    if (populated.author) {
+      populated.author.hasProfilePicture = checkProfilePictureExists(populated.author.profilePicture);
+    }
+    
+    // Add hasProfilePicture to taggedUsers if they exist
+    if (populated.taggedUsers && Array.isArray(populated.taggedUsers)) {
+      populated.taggedUsers = populated.taggedUsers.map(user => {
+        if (user && typeof user === 'object') {
+          user.hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+        }
+        return user;
+      });
+    }
+    
+    // Add hasProfilePicture to comment authors
+    if (populated.comments && Array.isArray(populated.comments)) {
+      const addHasProfilePictureToComments = (comments) => {
+        if (!comments || !Array.isArray(comments)) return;
+        comments.forEach(comment => {
+          if (comment.author) {
+            comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+          }
+          if (comment.replies && Array.isArray(comment.replies)) {
+            addHasProfilePictureToComments(comment.replies);
+          }
+        });
+      };
+      addHasProfilePictureToComments(populated.comments);
+    }
+    
     res.json(populated);
   } catch (err) {
     res.status(500).json({ message: "Failed to share post", error: err.message });
@@ -447,7 +648,38 @@ export const updatePost = async (req, res) => {
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
     
     populated = populated ? populated.toObject() : null;
-    if (populated) await populateRepliesAuthors(populated.comments);
+    if (populated) {
+      await populateRepliesAuthors(populated.comments);
+      
+      // Add hasProfilePicture to author
+      if (populated.author) {
+        populated.author.hasProfilePicture = checkProfilePictureExists(populated.author.profilePicture);
+      }
+      
+      // Add hasProfilePicture to taggedUsers
+      if (populated.taggedUsers && Array.isArray(populated.taggedUsers)) {
+        populated.taggedUsers = populated.taggedUsers.map(user => {
+          user.hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+          return user;
+        });
+      }
+      
+      // Add hasProfilePicture to comment authors
+      if (populated.comments && Array.isArray(populated.comments)) {
+        const addHasProfilePictureToComments = (comments) => {
+          if (!comments || !Array.isArray(comments)) return;
+          comments.forEach(comment => {
+            if (comment.author) {
+              comment.author.hasProfilePicture = checkProfilePictureExists(comment.author.profilePicture);
+            }
+            if (comment.replies && Array.isArray(comment.replies)) {
+              addHasProfilePictureToComments(comment.replies);
+            }
+          });
+        };
+        addHasProfilePictureToComments(populated.comments);
+      }
+    }
 
     res.json(populated);
   } catch (err) {

@@ -25,6 +25,7 @@ export default function navbar() {
   const pollingIntervalRef = useRef(null)
 
   let showProfileImage = Boolean(isAuthenticated)
+  
   useEffect(() => {
     function handleClickOutside(event) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) setIsOpen(false)
@@ -145,7 +146,11 @@ export default function navbar() {
             >
               <div className="d-flex align-items-center gap-2">
                 <img 
-                  src={notification.actor?.profilePicture ? `http://localhost:3000/${notification.actor.profilePicture}` : 'https://via.placeholder.com/32'} 
+                  src={
+                    notification.actor?.hasProfilePicture && notification.actor?.profilePicture 
+                      ? `http://localhost:3000/${notification.actor.profilePicture}` 
+                      : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                  } 
                   alt={actorName}
                   className="rounded-circle"
                   style={{ width: '32px', height: '32px', objectFit: 'cover' }}
@@ -236,7 +241,9 @@ export default function navbar() {
   };
 
   return (
+    
     <div className='navbar-container'>
+     
       <nav className="navbar navbar-expand-lg navbar-light bg-light fixed-top">
         <div className="container-fluid">
           {/* Left Side - Hamburger Menu (only show on mobile) */}
@@ -273,7 +280,7 @@ export default function navbar() {
           </a>
 
           {/* Navigation Menu - Only visible on desktop */}
-          {isAuthenticated && (
+          { (
             <ul className="navbar-nav d-none d-lg-flex">
               <li className="nav-item">
                 <Link 
@@ -295,7 +302,7 @@ export default function navbar() {
                 <Link 
                   className={`nav-link ${location.pathname === '/recommendations' ? 'active' : ''}`}
                   to="/recommendations"
-                >
+                > 
                   Recommendations
                 </Link>
               </li>
@@ -304,7 +311,7 @@ export default function navbar() {
 
           {/* Right Side - Navbar Options */}
           <div className="d-flex align-items-center gap-2 ms-auto">
-            {showProfileImage ? (
+            {showProfileImage ? (  
               <>
                 {/* Bell dropdown */}
                 <div className={`dropdown position-relative ${bellOpen ? 'show' : ''}`} ref={bellRef}>
@@ -324,7 +331,17 @@ export default function navbar() {
                       {notifications.slice(0,5).map((n) => (
                         <div key={n._id} className="alert alert-light border mb-0 py-2" role="button" onClick={() => openPost(n.post)}>
                           <div className="d-flex align-items-start gap-2">
-                            <img onClick={(e) => { e.stopPropagation(); openUserProfile(n.actor?._id) }} src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : 'https://via.placeholder.com/32'} alt="actor" className="rounded-circle" style={{ width: 32, height: 32, objectFit: 'cover', cursor: 'pointer' }} />
+                            <img 
+                              onClick={(e) => { e.stopPropagation(); openUserProfile(n.actor?._id) }} 
+                              src={
+                                n.actor?.hasProfilePicture && n.actor?.profilePicture 
+                                  ? `http://localhost:3000/${n.actor.profilePicture}` 
+                                  : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                              } 
+                              alt="actor" 
+                              className="rounded-circle" 
+                              style={{ width: 32, height: 32, objectFit: 'cover', cursor: 'pointer' }} 
+                            />
                             <div className="flex-grow-1">
                               <div className="small">
                                 <span role="button" onClick={(e) => { e.stopPropagation(); openUserProfile(n.actor?._id) }} className="fw-semibold text-decoration-none">{n.actor?.name || 'Someone'}</span> {n.message}
@@ -356,7 +373,16 @@ export default function navbar() {
                   aria-expanded={isOpen}
                 >
                   
-                  <img src={`http://localhost:3000/${user?.profilePicture}` || "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcT6pG71SAo6x_xIn_DgRMLKsFMEwMgc6k1DAg&s"} alt="Profile" className="rounded-circle" style={{ width: 40, height: 40, objectFit: 'cover' }} />
+                  <img 
+                    src={
+                      user?.hasProfilePicture && user?.profilePicture 
+                        ? `http://localhost:3000/${user.profilePicture}` 
+                        : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                    } 
+                    alt="Profile" 
+                    className="rounded-circle" 
+                    style={{ width: 40, height: 40, objectFit: 'cover' }} 
+                  />
                 </button>
                 <ul className={`dropdown-menu dropdown-menu-end ${isOpen ? 'show' : ''}`} style={{ right: 0, left: 'auto' }}>
                   <li>
@@ -372,7 +398,25 @@ export default function navbar() {
                 </ul>
               </div>
               </>
-            ) : null}
+            ) : (
+              /* Login and Signup buttons when not authenticated */
+              <div className="d-flex align-items-center gap-2">
+                <Link 
+                  to="/login" 
+                  className="btn btn-outline-primary"
+                  style={{ borderRadius: '20px', padding: '6px 20px' }}
+                >
+                  Login
+                </Link>
+                <Link 
+                  to="/signup" 
+                  className="btn btn-primary"
+                  style={{ borderRadius: '20px', padding: '6px 20px' }}
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </nav>

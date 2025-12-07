@@ -116,9 +116,9 @@ export default function NewChatModal({ isOpen, onClose, onSelectFriend, onSelect
                   <div className="avatar-container">
                     <img
                       src={
-                        friend.profilePicture
+                        friend.hasProfilePicture && friend.profilePicture
                           ? `http://localhost:3000/${friend.profilePicture}`
-                          : 'https://via.placeholder.com/200'
+                          : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
                       }
                       alt={friend.name}
                       className="avatar"

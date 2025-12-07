@@ -2,6 +2,23 @@ import Message from '../models/message.models.js';
 import Conversation from '../models/conversation.models.js';
 import User from '../models/user.models.js';
 import mongoose from 'mongoose';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper function to check if profile picture file exists
+const checkProfilePictureExists = (profilePicturePath) => {
+  if (!profilePicturePath) return false;
+  try {
+    const fullPath = path.join(__dirname, "..", profilePicturePath);
+    return fs.existsSync(fullPath);
+  } catch (error) {
+    return false;
+  }
+};
 
 // Upload chat image
 export const uploadChatImage = async (req, res) => {
@@ -41,7 +58,17 @@ export const getOrCreateConversation = async (req, res) => {
       await conversation.populate('participants', 'name email profilePicture');
     }
 
-    res.json(conversation);
+    // Add hasProfilePicture to participants
+    const conversationObj = conversation.toObject ? conversation.toObject() : conversation;
+    if (conversationObj.participants && Array.isArray(conversationObj.participants)) {
+      conversationObj.participants = conversationObj.participants.map(p => {
+        const participantObj = p.toObject ? p.toObject() : p;
+        participantObj.hasProfilePicture = checkProfilePictureExists(participantObj.profilePicture);
+        return participantObj;
+      });
+    }
+
+    res.json(conversationObj);
   } catch (error) {
     res.status(500).json({ message: "Error getting conversation", error: error.message });
   }
@@ -91,19 +118,30 @@ export const getConversations = async (req, res) => {
       
       const convId = conv._id.toString();
       
+      // Add hasProfilePicture to participants
+      const participantsWithPictureCheck = conv.participants.map(p => {
+        const participantObj = p.toObject ? p.toObject() : p;
+        participantObj.hasProfilePicture = checkProfilePictureExists(participantObj.profilePicture);
+        return participantObj;
+      });
+      
+      const otherParticipantObj = otherParticipant?.toObject ? otherParticipant.toObject() : otherParticipant;
+      const hasProfilePicture = checkProfilePictureExists(otherParticipantObj?.profilePicture);
+      
       return {
         _id: conv._id,
         id: convId,
         conversationId: convId,
-        userId: otherParticipant?._id?.toString() || otherParticipant?._id,
-        name: otherParticipant?.name || 'Unknown',
-        avatar: otherParticipant?.profilePicture || '',
+        userId: otherParticipantObj?._id?.toString() || otherParticipantObj?._id,
+        name: otherParticipantObj?.name || 'Unknown',
+        avatar: otherParticipantObj?.profilePicture || '',
+        hasProfilePicture: hasProfilePicture,
         lastMessage: conv.lastMessage?.text || '',
         lastMessageAt: conv.lastMessageAt,
         snippet: conv.lastMessage?.text || 'No messages yet',
         time: conv.lastMessageAt ? new Date(conv.lastMessageAt).toISOString() : null,
         unreadCount: unreadMap[convId] || 0,
-        participants: conv.participants
+        participants: participantsWithPictureCheck
       };
     });
 
@@ -136,7 +174,19 @@ export const getMessages = async (req, res) => {
       .populate('recipient', 'name profilePicture')
       .sort({ createdAt: 1 });
 
-    res.json(messages);
+    // Add hasProfilePicture to sender and recipient
+    const messagesWithPictureCheck = messages.map(msg => {
+      const msgObj = msg.toObject ? msg.toObject() : msg;
+      if (msgObj.sender) {
+        msgObj.sender.hasProfilePicture = checkProfilePictureExists(msgObj.sender.profilePicture);
+      }
+      if (msgObj.recipient) {
+        msgObj.recipient.hasProfilePicture = checkProfilePictureExists(msgObj.recipient.profilePicture);
+      }
+      return msgObj;
+    });
+
+    res.json(messagesWithPictureCheck);
   } catch (error) {
     res.status(500).json({ message: "Error getting messages", error: error.message });
   }

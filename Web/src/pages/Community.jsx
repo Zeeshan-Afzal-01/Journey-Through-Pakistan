@@ -26,7 +26,11 @@ function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal
           <div className="d-flex align-items-center gap-3">
             <img
               className="rounded-circle"
-              src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : "/default-avatar.png"}
+              src={
+                currentUser?.hasProfilePicture && currentUser?.profilePicture 
+                  ? `http://localhost:3000/${currentUser.profilePicture}` 
+                  : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+              }
               alt={currentUser?.name || "me"}
               style={{ width: "40px", height: "40px" }}
             />
@@ -212,7 +216,11 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
             <div className="d-flex align-items-center gap-3 mb-3">
               <img
                 className="rounded-circle"
-                src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : "/default-avatar.png"}
+                src={
+                  currentUser?.hasProfilePicture && currentUser?.profilePicture 
+                    ? `http://localhost:3000/${currentUser.profilePicture}` 
+                    : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                }
                 alt={currentUser?.name || "me"}
                 style={{ width: "40px", height: "40px" }}
               />
@@ -289,7 +297,7 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                 {taggedUsers.map((user) => {
                   const userId = user._id || user.id || user;
                   const userName = user.name || 'Friend';
-                  const userPic = user.profilePicture || user.avatar;
+                  const userPic = (user.hasProfilePicture && user.profilePicture) ? user.profilePicture : (user.avatar || null);
                   return (
                     <div 
                       key={userId.toString()} 
@@ -297,7 +305,7 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                       style={{ fontSize: '0.85rem' }}
                     >
                       <img 
-                        src={userPic ? (userPic.startsWith('http') ? userPic : `http://localhost:3000/${userPic}`) : "/default-avatar.png"} 
+                        src={userPic ? (userPic.startsWith('http') ? userPic : `http://localhost:3000/${userPic}`) : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"} 
                         alt={userName}
                         className="rounded-circle"
                         style={{ width: '20px', height: '20px', objectFit: 'cover' }}
@@ -524,7 +532,11 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                           disabled={isTagged}
                         >
                           <img 
-                            src={friend.profilePicture ? `http://localhost:3000/${friend.profilePicture}` : "/default-avatar.png"} 
+                            src={
+                              friend.hasProfilePicture && friend.profilePicture 
+                                ? `http://localhost:3000/${friend.profilePicture}` 
+                                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                            } 
                             alt={friend.name}
                             className="rounded-circle me-3"
                             style={{ width: "40px", height: "40px", objectFit: "cover" }}
@@ -686,7 +698,16 @@ function CreateStatusModal({ currentUser, onCreated, onClose }) {
         <div className="modal-content" style={{ borderRadius: 16, overflow: 'hidden' }}>
           <div className="modal-header" style={{ background: 'linear-gradient(135deg,#8a2be2,#00d4ff)', color: '#fff' }}>
             <div className="d-flex align-items-center gap-2">
-              <img className="rounded-circle" style={{ width:36, height:36, objectFit:'cover', border:'2px solid rgba(255,255,255,.6)' }} src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : '/default-avatar.png'} alt={currentUser?.name||'me'} />
+              <img 
+                className="rounded-circle" 
+                style={{ width:36, height:36, objectFit:'cover', border:'2px solid rgba(255,255,255,.6)' }} 
+                src={
+                  currentUser?.hasProfilePicture && currentUser?.profilePicture 
+                    ? `http://localhost:3000/${currentUser.profilePicture}` 
+                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                } 
+                alt={currentUser?.name||'me'} 
+              />
               <div className="fw-semibold">{currentUser?.name || 'You'}</div>
             </div>
             <button type="button" className="btn-close btn-close-white" onClick={onClose}></button>
@@ -738,7 +759,11 @@ function StatusBar({ currentUser, groups, onClickGroup, onAddRequested }) {
           <div className="story-item" onClick={() => onAddRequested?.()}>
             <div className="story-avatar-wrapper add-story">
               <img 
-                src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : '/default-avatar.png'} 
+                src={
+                  currentUser?.hasProfilePicture && currentUser?.profilePicture 
+                    ? `http://localhost:3000/${currentUser.profilePicture}` 
+                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                } 
                 alt={currentUser?.name || 'You'} 
               />
               <span className="story-add-icon">+</span>
@@ -757,7 +782,11 @@ function StatusBar({ currentUser, groups, onClickGroup, onAddRequested }) {
               >
                 <div className={`story-avatar-wrapper ${!hasUnviewed ? 'viewed' : ''}`}>
                   <img 
-                    src={g.user?.profilePicture ? `http://localhost:3000/${g.user.profilePicture}` : '/default-avatar.png'} 
+                    src={
+                      g.user?.hasProfilePicture && g.user?.profilePicture 
+                        ? `http://localhost:3000/${g.user.profilePicture}` 
+                        : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                    } 
                     alt={g.user?.name || 'User'} 
                   />
                 </div>
@@ -1055,7 +1084,11 @@ function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, current
                 <div className="story-header-left">
                   <img 
                     className="story-header-avatar" 
-                    src={group?.user?.profilePicture ? `http://localhost:3000/${group.user.profilePicture}` : '/default-avatar.png'} 
+                    src={
+                      group?.user?.hasProfilePicture && group?.user?.profilePicture 
+                        ? `http://localhost:3000/${group.user.profilePicture}` 
+                        : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                    } 
                     alt={group?.user?.name || 'User'} 
                   />
                   <div className="story-header-info">
@@ -1253,7 +1286,11 @@ function MessagesModal({ messages, onClose }) {
               <div key={msg._id || msg.id} className="viewer-item">
                 <img 
                   className="viewer-avatar" 
-                  src={msg.author?.profilePicture ? `http://localhost:3000/${msg.author.profilePicture}` : '/default-avatar.png'} 
+                  src={
+                    msg.author?.hasProfilePicture && msg.author?.profilePicture 
+                      ? `http://localhost:3000/${msg.author.profilePicture}` 
+                      : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                  } 
                   alt={msg.author?.name || 'User'} 
                 />
                 <div className="viewer-info">
@@ -1286,7 +1323,11 @@ function ViewersModal({ viewers, onClose }) {
               <div key={v._id || v.id} className="viewer-item">
                 <img 
                   className="viewer-avatar" 
-                  src={v.profilePicture ? `http://localhost:3000/${v.profilePicture}` : '/default-avatar.png'} 
+                  src={
+                    v.hasProfilePicture && v.profilePicture 
+                      ? `http://localhost:3000/${v.profilePicture}` 
+                      : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                  } 
                   alt={v.name} 
                 />
                 <div className="viewer-info">
@@ -1400,7 +1441,15 @@ function Composer({ onPost, currentUser }) {
     <div className="card shadow-sm mb-3">
       <div className="card-body">
         <div className="d-flex gap-3">
-          <img className="rounded-circle flex-shrink-0 comm-avatar" src={currentUser?.profilePicture ? `http://localhost:3000/${currentUser.profilePicture}` : "/default-avatar.png"} alt={currentUser?.name || "me"} />
+          <img 
+            className="rounded-circle flex-shrink-0 comm-avatar" 
+            src={
+              currentUser?.hasProfilePicture && currentUser?.profilePicture 
+                ? `http://localhost:3000/${currentUser.profilePicture}` 
+                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+            } 
+            alt={currentUser?.name || "me"} 
+          />
           <div className="flex-grow-1">
             <textarea value={text} onChange={(e)=>{
               const v = e.target.value;
@@ -1555,7 +1604,7 @@ function Composer({ onPost, currentUser }) {
                 {taggedUsers.map((user) => {
                   const userId = user._id || user;
                   const userName = user.name || 'Friend';
-                  const userPic = user.profilePicture;
+                  const userPic = (user.hasProfilePicture && user.profilePicture) ? user.profilePicture : null;
                   return (
                     <div 
                       key={userId.toString()} 
@@ -1563,7 +1612,7 @@ function Composer({ onPost, currentUser }) {
                       style={{ fontSize: '0.85rem' }}
                     >
                       <img 
-                        src={userPic ? `http://localhost:3000/${userPic}` : "/default-avatar.png"} 
+                        src={userPic ? `http://localhost:3000/${userPic}` : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"} 
                         alt={userName}
                         className="rounded-circle"
                         style={{ width: '20px', height: '20px', objectFit: 'cover' }}
@@ -1613,7 +1662,11 @@ function Composer({ onPost, currentUser }) {
                           disabled={isTagged}
                         >
                           <img 
-                            src={friend.profilePicture ? `http://localhost:3000/${friend.profilePicture}` : "/default-avatar.png"} 
+                            src={
+                              friend.hasProfilePicture && friend.profilePicture 
+                                ? `http://localhost:3000/${friend.profilePicture}` 
+                                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                            } 
                             alt={friend.name}
                             className="rounded-circle"
                             style={{ width: '32px', height: '32px', objectFit: 'cover' }}
@@ -1833,7 +1886,15 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
     <div className="card shadow-sm mb-3 post-card">
       <div className="card-body">
         <div className="d-flex align-items-center gap-2 mb-2 position-relative">
-          <img className="rounded-circle comm-avatar" src={post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "/default-avatar.png"} alt={post.author?.name || "User"} />
+          <img 
+            className="rounded-circle comm-avatar" 
+            src={
+              post.author?.hasProfilePicture && post.author?.profilePicture 
+                ? `http://localhost:3000/${post.author.profilePicture}` 
+                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+            } 
+            alt={post.author?.name || "User"} 
+          />
           <div className="flex-grow-1">
             <div className="fw-semibold small">{post.author?.name || "Unknown"}</div>
             <div className="text-muted xsmall">
@@ -2204,7 +2265,16 @@ function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, 
       {comments.map((c) => (
         <div key={c._id} className="mb-2">
           <div className="d-flex align-items-start gap-2">
-            <img className="rounded-circle" src={c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : '/default-avatar.png'} alt={c.author?.name || 'User'} style={{ width: 28, height: 28, objectFit: 'cover' }} />
+            <img 
+              className="rounded-circle" 
+              src={
+                c.author?.hasProfilePicture && c.author?.profilePicture 
+                  ? `http://localhost:3000/${c.author.profilePicture}` 
+                  : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+              } 
+              alt={c.author?.name || 'User'} 
+              style={{ width: 28, height: 28, objectFit: 'cover' }} 
+            />
             <div className="bg-light rounded px-2 py-1 flex-grow-1">
               <div className="small"><span className="fw-semibold">{c.author?.name || 'User'}</span> <span className="text-muted">{new Date(c.createdAt).toLocaleString?.() || ''}</span></div>
               <div className="small">{c.text}</div>
@@ -2257,9 +2327,16 @@ function NotificationsCenter({ notifications, onClose, navigate, setNotification
             <div className="d-flex flex-column gap-2">
               {notifications.map(n => (
                 <div key={n._id} className="d-flex align-items-start gap-2 border rounded p-2" style={{ cursor: 'pointer' }} onClick={() => handleNotificationClick(n)}>
-                  <img className="rounded-circle" style={{ width: 36, height: 36, objectFit:'cover', cursor:'pointer' }}
+                  <img 
+                    className="rounded-circle" 
+                    style={{ width: 36, height: 36, objectFit:'cover', cursor:'pointer' }}
                        onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }}
-                       src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
+                    src={
+                      n.actor?.hasProfilePicture && n.actor?.profilePicture 
+                        ? `http://localhost:3000/${n.actor.profilePicture}` 
+                        : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                    } 
+                  />
                   <div className="small flex-grow-1">
                     <span className="fw-semibold" onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }} style={{ cursor: 'pointer' }}>{n.actor?.name || 'Someone'}</span> {n.message}
                     <div className="text-muted xsmall">{new Date(n.createdAt).toLocaleString?.() || ''}</div>
@@ -2562,7 +2639,17 @@ export default function Community() {
                   const openProfile = () => navigate(`/profile?userId=${uid}`);
                   return (
                     <div key={uid} className="d-flex align-items-center gap-2">
-                      <img onClick={openProfile} style={{cursor:'pointer'}} className="rounded-circle comm-avatar" src={tc.user?.profilePicture ? `http://localhost:3000/${tc.user.profilePicture}` : '/default-avatar.png'} alt={tc.user?.name || 'User'} />
+                      <img 
+                        onClick={openProfile} 
+                        style={{cursor:'pointer'}} 
+                        className="rounded-circle comm-avatar" 
+                        src={
+                          tc.user?.hasProfilePicture && tc.user?.profilePicture 
+                            ? `http://localhost:3000/${tc.user.profilePicture}` 
+                            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                        } 
+                        alt={tc.user?.name || 'User'} 
+                      />
                       <div className="flex-grow-1" onClick={openProfile} style={{cursor:'pointer'}}>
                         <div className="small fw-semibold">{tc.user?.name}{isSelf ? ' (You)' : ''}</div>
                         <div className="xsmall text-muted">{tc.totalLikes} likes • {tc.posts} posts</div>
@@ -2613,7 +2700,30 @@ export default function Community() {
                 <div className="text-center text-muted small py-4">No posts yet. Be the first to share!</div>
               )}
               {posts.filter(post => {
-            if (hashtagFilter && !(Array.isArray(post.hashtags) && post.hashtags.includes(hashtagFilter))) return false;
+            // Filter by hashtag - check both hashtags array and extract from text as fallback
+            if (hashtagFilter) {
+              const filterLower = hashtagFilter.toLowerCase();
+              let postHashtags = [];
+              
+              // Check if post has hashtags array
+              if (Array.isArray(post.hashtags) && post.hashtags.length > 0) {
+                postHashtags = post.hashtags.map(tag => tag.toLowerCase());
+              }
+              
+              // If no hashtags array or empty, extract from text as fallback
+              if (postHashtags.length === 0 && post.text) {
+                const hashtagRegex = /#(\w{2,})/g;
+                const matches = post.text.match(hashtagRegex);
+                if (matches) {
+                  postHashtags = matches.map(match => match.substring(1).toLowerCase());
+                }
+              }
+              
+              // Check if filter matches any hashtag
+              if (!postHashtags.includes(filterLower)) {
+                return false;
+              }
+            }
             if (selectedGroupId && post.group?._id !== selectedGroupId) return false; // When a group is selected, show only posts from that group
             if (!user || !post.author?._id) return false;
             const isMine = post.author._id === user._id;
@@ -2881,9 +2991,16 @@ export default function Community() {
 
                 return (
                   <div key={n._id} className="d-flex align-items-start gap-2" style={{ cursor: 'pointer' }} onClick={handleNotificationClick}>
-                    <img className="rounded-circle" style={{ width: 28, height: 28, objectFit:'cover', cursor:'pointer' }}
+                    <img 
+                      className="rounded-circle" 
+                      style={{ width: 28, height: 28, objectFit:'cover', cursor:'pointer' }}
                          onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }}
-                         src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : '/default-avatar.png'} />
+                      src={
+                        n.actor?.hasProfilePicture && n.actor?.profilePicture 
+                          ? `http://localhost:3000/${n.actor.profilePicture}` 
+                          : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                      } 
+                    />
                     <div className="small flex-grow-1">
                       <span className="fw-semibold" onClick={(e) => { e.stopPropagation(); navigate(`/profile?userId=${n.actor?._id || n.actor}`); }} style={{ cursor: 'pointer' }}>{n.actor?.name || 'Someone'}</span> {n.message}
                       {n.type === 'status_message' && (

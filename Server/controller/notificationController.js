@@ -1,4 +1,21 @@
 import Notification from "../models/notification.models.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Helper function to check if profile picture file exists
+const checkProfilePictureExists = (profilePicturePath) => {
+  if (!profilePicturePath) return false;
+  try {
+    const fullPath = path.join(__dirname, "..", profilePicturePath);
+    return fs.existsSync(fullPath);
+  } catch (error) {
+    return false;
+  }
+};
 
 export const listMyNotifications = async (req, res) => {
   try {
@@ -14,7 +31,16 @@ export const listMyNotifications = async (req, res) => {
       .populate("post", "_id")
       .populate("status", "_id")
       .lean();
-    res.json(notifications);
+    
+    // Add hasProfilePicture to actors
+    const notificationsWithPictureCheck = notifications.map(notification => {
+      if (notification.actor) {
+        notification.actor.hasProfilePicture = checkProfilePictureExists(notification.actor.profilePicture);
+      }
+      return notification;
+    });
+    
+    res.json(notificationsWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch notifications", error: err.message });
   }
@@ -41,7 +67,16 @@ export const listActivity = async (req, res) => {
       .populate("actor", "name profilePicture")
       .populate("recipient", "name")
       .lean();
-    res.json(notifications);
+    
+    // Add hasProfilePicture to actors
+    const notificationsWithPictureCheck = notifications.map(notification => {
+      if (notification.actor) {
+        notification.actor.hasProfilePicture = checkProfilePictureExists(notification.actor.profilePicture);
+      }
+      return notification;
+    });
+    
+    res.json(notificationsWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch activity", error: err.message });
   }

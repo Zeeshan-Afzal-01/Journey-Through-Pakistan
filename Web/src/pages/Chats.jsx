@@ -348,14 +348,19 @@ export default function Chats() {
         
         const otherParticipantId = otherParticipant?._id?.toString() || otherParticipant?.toString() || conv.userId;
         
+        const hasProfilePicture = (otherParticipant?.hasProfilePicture !== undefined) 
+          ? otherParticipant.hasProfilePicture 
+          : (conv.hasProfilePicture !== undefined ? conv.hasProfilePicture : false);
+        const profilePicture = otherParticipant?.profilePicture || conv.avatar;
+        
         return {
           id: conv.id || conv._id?.toString() || conv.conversationId,
           conversationId: conv.conversationId || conv._id?.toString() || conv.id,
           userId: otherParticipantId,
           name: otherParticipant?.name || conv.name || 'Unknown',
-          avatar: otherParticipant?.profilePicture || conv.avatar
-            ? `http://localhost:3000/${otherParticipant?.profilePicture || conv.avatar}` 
-            : 'https://via.placeholder.com/200',
+          avatar: (hasProfilePicture && profilePicture)
+            ? `http://localhost:3000/${profilePicture}` 
+            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
           snippet: conv.snippet || conv.lastMessage || 'No messages yet',
           time: conv.time || (conv.lastMessageAt ? moment(conv.lastMessageAt).fromNow() : ''),
           lastMessageAt: conv.lastMessageAt || conv.time,
@@ -413,14 +418,17 @@ export default function Chats() {
         updated.unshift(moved);
       } else {
         // New conversation - add to list
+        const senderHasProfilePicture = newMessage.sender?.hasProfilePicture || false;
+        const senderProfilePicture = newMessage.sender?.profilePicture;
+        
         const newChat = {
           id: messageConvId,
           conversationId: messageConvId,
           userId: newMessage.sender?._id?.toString() || newMessage.sender?._id,
           name: newMessage.sender?.name || 'Unknown',
-          avatar: newMessage.sender?.profilePicture 
-            ? `http://localhost:3000/${newMessage.sender.profilePicture}` 
-            : 'https://via.placeholder.com/200',
+          avatar: (senderHasProfilePicture && senderProfilePicture)
+            ? `http://localhost:3000/${senderProfilePicture}` 
+            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
           snippet: newMessage.text || 'No messages yet',
           time: newMessage.createdAt ? moment(newMessage.createdAt).fromNow() : '',
           lastMessageAt: newMessage.createdAt,
@@ -522,14 +530,17 @@ export default function Chats() {
       const conversationId = convResponse.data._id;
 
       // Create chat object
+      const friendHasProfilePicture = friend.hasProfilePicture || false;
+      const friendProfilePicture = friend.profilePicture;
+      
       const newChat = {
         id: conversationId,
         conversationId: conversationId,
         userId: friend._id,
         name: friend.name,
-        avatar: friend.profilePicture 
-          ? `http://localhost:3000/${friend.profilePicture}` 
-          : 'https://via.placeholder.com/200',
+        avatar: (friendHasProfilePicture && friendProfilePicture)
+          ? `http://localhost:3000/${friendProfilePicture}` 
+          : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
         snippet: 'No messages yet',
         time: '',
         unread: 0,
@@ -1300,7 +1311,11 @@ export default function Chats() {
                     onClick={() => handleSelectChat(chat)}
                   >
                     <div className="avatar-container">
-                      <img className="chat-avatar" src={chat.avatar || 'https://via.placeholder.com/200'} alt={chat.name || 'User'} />
+                      <img 
+                        className="chat-avatar" 
+                        src={chat.avatar || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
+                        alt={chat.name || 'User'} 
+                      />
                       {chat.isOnline && <span className="online-indicator"></span>}
                     </div>
                     <div className="chat-info">
@@ -1334,7 +1349,7 @@ export default function Chats() {
                   <div className="avatar-container">
                     <img 
                       className="chat-avatar" 
-                      src={selectedChat.avatar} 
+                      src={selectedChat.avatar || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
                       alt={selectedChat.name} 
                     />
                     {selectedChat.isOnline && <span className="online-indicator"></span>}

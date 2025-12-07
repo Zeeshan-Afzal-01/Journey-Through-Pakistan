@@ -4,6 +4,12 @@ import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import sendOTP from "../utils/sendOTP.js";
 import Notification from "../models/notification.models.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 export const registerUser = async (req, res) => {
   try {
@@ -78,6 +84,17 @@ const generateOTP = () => {
   return otp;
 };
 
+// Helper function to check if profile picture file exists
+const checkProfilePictureExists = (profilePicturePath) => {
+  if (!profilePicturePath) return false;
+  try {
+    const fullPath = path.join(__dirname, "..", profilePicturePath);
+    return fs.existsSync(fullPath);
+  } catch (error) {
+    return false;
+  }
+};
+
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -105,6 +122,10 @@ export const login = async (req, res) => {
     const token = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, {
       expiresIn: "1d",
     });
+    
+    // Check if profile picture file exists
+    const hasProfilePicture = checkProfilePictureExists(existingUser.profilePicture);
+    
     res
       .cookie("appToken", token, {
         httpOnly: true,
@@ -120,6 +141,7 @@ export const login = async (req, res) => {
           name: existingUser.name,
           email: existingUser.email,
           profilePic: existingUser.profilePicture,
+          hasProfilePicture: hasProfilePicture,
         },
       });
   } catch (err) {
@@ -142,8 +164,15 @@ export const searchUsers = async (req, res) => {
     const { q } = req.query;
     if (!q || q.trim().length === 0) return res.json([]);
     const regex = new RegExp(q, 'i');
-    const users = await User.find({ name: regex }).select("-password").limit(20);
-    res.json(users);
+    const users = await User.find({ name: regex }).select("-password").limit(20).lean();
+    
+    // Add hasProfilePicture to each user
+    const usersWithPictureCheck = users.map(user => {
+      const hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+      return { ...user, hasProfilePicture };
+    });
+    
+    res.json(usersWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Error searching users", err });
   }
@@ -158,8 +187,15 @@ export const getTopCreators = async (req, res) => {
       { $limit: 3 },
     ]);
     const ids = top.map(t => t._id);
-    const users = await User.find({ _id: { $in: ids } }).select("name profilePicture");
-    const idToUser = new Map(users.map(u => [String(u._id), u]));
+    const users = await User.find({ _id: { $in: ids } }).select("name profilePicture").lean();
+    
+    // Add hasProfilePicture to each user
+    const usersWithPictureCheck = users.map(u => {
+      const hasProfilePicture = checkProfilePictureExists(u.profilePicture);
+      return { ...u, hasProfilePicture };
+    });
+    
+    const idToUser = new Map(usersWithPictureCheck.map(u => [String(u._id), u]));
     const result = top.map(t => ({
       user: idToUser.get(String(t._id)),
       totalLikes: t.totalLikes,
@@ -181,6 +217,10 @@ export const getUserById = async (req, res) => {
     if (!userExists) {
       return res.status(404).json({ message: "User Not Found!" });
     }
+
+    // Check if profile picture file exists
+    const hasProfilePicture = checkProfilePictureExists(userExists.profilePicture);
+    userExists.hasProfilePicture = hasProfilePicture;
 
     res.status(200).json(userExists);
   } catch (err) {
@@ -219,7 +259,13 @@ export const getMe = async (req, res) => {
   try {
     const me = await User.findById(req.user.id).select("-password");
     if (!me) return res.status(404).json({ message: "User not found" });
-    res.json(me);
+    
+    // Check if profile picture file exists
+    const hasProfilePicture = checkProfilePictureExists(me.profilePicture);
+    const userResponse = me.toObject ? me.toObject() : me;
+    userResponse.hasProfilePicture = hasProfilePicture;
+    
+    res.json(userResponse);
   } catch (err) {
     res.status(500).json({ message: "Error getting current user", err });
   }
@@ -255,7 +301,13 @@ export const updateMe = async (req, res) => {
       new: true,
     }).select("-password").populate("friends", "name profilePicture city");
     if (!updated) return res.status(404).json({ message: "User not found" });
-    res.json({ message: "Profile updated", user: updated });
+    
+    // Check if profile picture file exists
+    const hasProfilePicture = checkProfilePictureExists(updated.profilePicture);
+    const userResponse = updated.toObject ? updated.toObject() : updated;
+    userResponse.hasProfilePicture = hasProfilePicture;
+    
+    res.json({ message: "Profile updated", user: userResponse });
   } catch (err) {
     res.status(500).json({ message: "Error updating profile", err });
   }
@@ -464,7 +516,15 @@ export const getFriends = async (req, res) => {
     const userId = req.user.id;
     const user = await User.findById(userId).populate("friends", "name profilePicture city");
     if (!user) return res.status(404).json({ message: "User not found" });
-    res.json(user.friends || []);
+    
+    // Add hasProfilePicture to each friend
+    const friendsWithPictureCheck = (user.friends || []).map(friend => {
+      const friendObj = friend.toObject ? friend.toObject() : friend;
+      friendObj.hasProfilePicture = checkProfilePictureExists(friendObj.profilePicture);
+      return friendObj;
+    });
+    
+    res.json(friendsWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch friends", error: err.message });
   }

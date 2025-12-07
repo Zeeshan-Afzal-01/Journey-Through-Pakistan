@@ -123,7 +123,11 @@ function PostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostDelete
         <div className="d-flex align-items-center gap-2 mb-2 position-relative">
           <img 
             className="rounded-circle" 
-            src={post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "/default-avatar.png"} 
+            src={
+              post.author?.hasProfilePicture && post.author?.profilePicture 
+                ? `http://localhost:3000/${post.author.profilePicture}` 
+                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+            } 
             alt={post.author?.name || "User"}
             style={{ width: '40px', height: '40px', objectFit: 'cover' }}
           />
@@ -232,7 +236,11 @@ function PostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostDelete
                 <div key={c._id} className="d-flex gap-2">
                   <img 
                     className="rounded-circle"
-                    src={c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : "/default-avatar.png"}
+                    src={
+                      c.author?.hasProfilePicture && c.author?.profilePicture 
+                        ? `http://localhost:3000/${c.author.profilePicture}` 
+                        : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                    }
                     alt={c.author?.name || "User"}
                     style={{ width: '32px', height: '32px', objectFit: 'cover' }}
                   />
@@ -379,6 +387,13 @@ export default function Profile() {
     const fetchPosts = async () => {
       const targetId = otherUser?._id || user?._id;
       if (!targetId) return;
+      // Only fetch posts if viewing own profile or friend's profile
+      if (!isMe && !isFriend) {
+        setUserPosts([]);
+        setFilteredUserPosts([]);
+        setLoadingPosts(false);
+        return;
+      }
       try {
         setLoadingPosts(true);
         const res = await listPostsByAuthor(targetId);
@@ -389,7 +404,7 @@ export default function Profile() {
       }
     };
     fetchPosts();
-  }, [otherUser, user]);
+  }, [otherUser, user, isMe, isFriend]);
 
   useEffect(() => {
     if (!user?._id || isMe) {
@@ -411,17 +426,23 @@ export default function Profile() {
     setFilteredUserPosts(filtered);
   }, [userPosts, groups, user, isMe]);
 
-  // Fetch user's friends
+  // Fetch user's friends - only if viewing own profile or friend's profile
   useEffect(() => {
     const fetchUserFriends = async () => {
       const targetId = otherUser?._id || user?._id;
       if (!targetId) return;
+      // Only fetch friends if viewing own profile or friend's profile
+      if (!isMe && !isFriend) {
+        setUserFriends([]);
+        setLoadingFriends(false);
+        return;
+      }
       try {
         setLoadingFriends(true);
         if (isMe) {
           const res = await getFriends();
           setUserFriends(Array.isArray(res.data) ? res.data : []);
-        } else if (otherUser?.friends) {
+        } else if (isFriend && otherUser?.friends) {
           setUserFriends(otherUser.friends || []);
         }
       } catch (err) {
@@ -431,10 +452,19 @@ export default function Profile() {
       }
     };
     fetchUserFriends();
-  }, [otherUser, user, isMe]);
+  }, [otherUser, user, isMe, isFriend]);
+
+  // Ensure non-friends can only see 'about' tab
+  useEffect(() => {
+    if (!isMe && !isFriend && activeTab !== 'about') {
+      setActiveTab('about');
+    }
+  }, [isMe, isFriend, activeTab]);
 
   const viewingUser = otherUser || user;
-  const profilePicture = viewingUser?.profilePicture ? `http://localhost:3000/${viewingUser.profilePicture}` : "https://placehold.co/200x200";
+  const profilePicture = (viewingUser?.hasProfilePicture && viewingUser?.profilePicture) 
+    ? `http://localhost:3000/${viewingUser.profilePicture}` 
+    : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
   const coverPhoto = viewingUser?.coverPhoto ? `http://localhost:3000/${viewingUser.coverPhoto}` : "https://placehold.co/1200x400/1877f2/ffffff?text=Cover+Photo";
 
   const handleChangePicture = async (e) => {
@@ -591,7 +621,14 @@ export default function Profile() {
               style={{ width: '168px', height: '168px', objectFit: 'cover' }}
             />
             {isMe && (
-              <div className="position-absolute bottom-0 end-0">
+              <div 
+                className="position-absolute" 
+                style={{ 
+                  bottom: '0', 
+                  right: '0',
+                  zIndex: 10
+                }}
+              >
                 <input 
                   ref={profilePicInputRef}
                   type="file" 
@@ -601,12 +638,18 @@ export default function Profile() {
                 />
                 <button 
                   className="btn btn-primary rounded-circle d-flex align-items-center justify-content-center"
-                  style={{ width: '36px', height: '36px' }}
+                  style={{ 
+                    width: '36px', 
+                    height: '36px',
+                    padding: 0,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    border: '2px solid white'
+                  }}
                   onClick={() => profilePicInputRef.current?.click()}
                   disabled={uploadingPic}
                   title="Edit Profile Picture"
                 >
-                  <FiCamera size={18} />
+                  <FiCamera size={18} style={{ color: 'white' }} />
                 </button>
               </div>
             )}
@@ -777,9 +820,11 @@ export default function Profile() {
                           <FiMapPin /> Add city
                         </button>
                       )}
-                      <span className="d-flex align-items-center gap-1">
-                        <FiUsers /> {userFriends.length} friends
-                      </span>
+                      {(isMe || isFriend) && (
+                        <span className="d-flex align-items-center gap-1">
+                          <FiUsers /> {userFriends.length} friends
+                        </span>
+                      )}
                     </>
                   )}
                 </div>
@@ -854,17 +899,19 @@ export default function Profile() {
             {/* Navigation Tabs */}
             <div className="border-top pt-3">
               <div className="d-flex gap-4">
-                <button 
-                  className={`btn btn-link p-0 text-decoration-none ${activeTab === 'posts' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
-                  onClick={() => setActiveTab('posts')}
-                  style={{ 
-                    borderBottom: activeTab === 'posts' ? '3px solid #1877f2' : 'none',
-                    paddingBottom: '12px',
-                    color: activeTab === 'posts' ? '#1877f2' : '#65676b'
-                  }}
-                >
-                  Posts
-                </button>
+                {(isMe || isFriend) && (
+                  <button 
+                    className={`btn btn-link p-0 text-decoration-none ${activeTab === 'posts' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
+                    onClick={() => setActiveTab('posts')}
+                    style={{ 
+                      borderBottom: activeTab === 'posts' ? '3px solid #1877f2' : 'none',
+                      paddingBottom: '12px',
+                      color: activeTab === 'posts' ? '#1877f2' : '#65676b'
+                    }}
+                  >
+                    Posts
+                  </button>
+                )}
                 <button 
                   className={`btn btn-link p-0 text-decoration-none ${activeTab === 'about' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
                   onClick={() => setActiveTab('about')}
@@ -876,28 +923,32 @@ export default function Profile() {
                 >
                   About
                 </button>
-                <button 
-                  className={`btn btn-link p-0 text-decoration-none ${activeTab === 'friends' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
-                  onClick={() => setActiveTab('friends')}
-                  style={{ 
-                    borderBottom: activeTab === 'friends' ? '3px solid #1877f2' : 'none',
-                    paddingBottom: '12px',
-                    color: activeTab === 'friends' ? '#1877f2' : '#65676b'
-                  }}
-                >
-                  Friends
-                </button>
-                <button 
-                  className={`btn btn-link p-0 text-decoration-none ${activeTab === 'photos' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
-                  onClick={() => setActiveTab('photos')}
-                  style={{ 
-                    borderBottom: activeTab === 'photos' ? '3px solid #1877f2' : 'none',
-                    paddingBottom: '12px',
-                    color: activeTab === 'photos' ? '#1877f2' : '#65676b'
-                  }}
-                >
-                  Photos
-                </button>
+                {(isMe || isFriend) && (
+                  <button 
+                    className={`btn btn-link p-0 text-decoration-none ${activeTab === 'friends' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
+                    onClick={() => setActiveTab('friends')}
+                    style={{ 
+                      borderBottom: activeTab === 'friends' ? '3px solid #1877f2' : 'none',
+                      paddingBottom: '12px',
+                      color: activeTab === 'friends' ? '#1877f2' : '#65676b'
+                    }}
+                  >
+                    Friends
+                  </button>
+                )}
+                {(isMe || isFriend) && (
+                  <button 
+                    className={`btn btn-link p-0 text-decoration-none ${activeTab === 'photos' ? 'border-bottom border-3 border-primary fw-bold' : 'text-muted'}`}
+                    onClick={() => setActiveTab('photos')}
+                    style={{ 
+                      borderBottom: activeTab === 'photos' ? '3px solid #1877f2' : 'none',
+                      paddingBottom: '12px',
+                      color: activeTab === 'photos' ? '#1877f2' : '#65676b'
+                    }}
+                  >
+                    Photos
+                  </button>
+                )}
               </div>
             </div>
           </div>
@@ -1026,7 +1077,7 @@ export default function Profile() {
                       <FiCalendar /> Joined {new Date(viewingUser.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
                     </div>
                   )}
-                  {!isMe && (
+                  {!isMe && isFriend && (
                     <div className="mt-3 pt-3 border-top">
                       <h6 className="fw-bold mb-2" style={{ fontSize: '17px', color: '#050505' }}>Mutual Friends</h6>
                       <p className="text-muted small" style={{ fontSize: '15px' }}>No mutual friends</p>
@@ -1039,7 +1090,7 @@ export default function Profile() {
 
           {/* Main Content */}
           <div className="col-12 col-lg-6">
-            {activeTab === 'posts' && (
+            {activeTab === 'posts' && (isMe || isFriend) && (
               <div>
                 {loadingPosts ? (
                   <div>
@@ -1266,7 +1317,7 @@ export default function Profile() {
               </div>
             )}
 
-            {activeTab === 'friends' && (
+            {activeTab === 'friends' && (isMe || isFriend) && (
               <div className="card shadow-sm">
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-center mb-3">
@@ -1286,9 +1337,9 @@ export default function Profile() {
                       {userFriends.map((friend) => {
                         const friendId = typeof friend === 'string' ? friend : friend._id;
                         const friendName = typeof friend === 'object' ? friend.name : 'Friend';
-                        const friendPic = typeof friend === 'object' && friend.profilePicture 
+                        const friendPic = (typeof friend === 'object' && friend.hasProfilePicture && friend.profilePicture)
                           ? `http://localhost:3000/${friend.profilePicture}` 
-                          : "https://placehold.co/150x150";
+                          : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
                         return (
                           <div key={friendId} className="col-6 col-md-4">
                             <Link 
@@ -1321,7 +1372,7 @@ export default function Profile() {
               </div>
             )}
 
-            {activeTab === 'photos' && (
+            {activeTab === 'photos' && (isMe || isFriend) && (
               <div className="card shadow-sm">
                 <div className="card-body">
                   <div className="d-flex justify-content-between align-items-center mb-3">
@@ -1356,10 +1407,11 @@ export default function Profile() {
 
           {/* Right Sidebar */}
           <div className="col-12 col-lg-3">
-            <div className="card shadow-sm">
-              <div className="card-body">
-                <h6 className="fw-bold mb-3">Photos</h6>
-                {userPhotos.length > 0 ? (
+            {(isMe || isFriend) && (
+              <div className="card shadow-sm">
+                <div className="card-body">
+                  <h6 className="fw-bold mb-3">Photos</h6>
+                  {userPhotos.length > 0 ? (
                   <div className="row g-2">
                     {userPhotos.slice(0, 9).map((photo) => (
                       <div key={photo.id} className="col-4">
@@ -1374,11 +1426,12 @@ export default function Profile() {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-muted small">No photos yet</p>
-                )}
+                  ) : (
+                    <p className="text-muted small">No photos yet</p>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

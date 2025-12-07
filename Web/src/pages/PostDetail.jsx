@@ -144,9 +144,9 @@ export default function PostDetail() {
                 <img
                   className="rounded-circle me-2 post-avatar"
                   src={
-                    post.author?.profilePicture
+                    post.author?.hasProfilePicture && post.author?.profilePicture
                       ? `http://localhost:3000/${post.author.profilePicture}`
-                      : "https://placehold.co/64x64"
+                      : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
                   }
                   alt={post.author?.name || "User"}
                 /> 
@@ -213,11 +213,11 @@ export default function PostDetail() {
                    <img
   className="rounded-circle me-2 post-avatar"
   src={
-    post.author?.profilePicture
-      ? `http://localhost:3000/${post.author.profilePicture}`
-      : "https://placehold.co/64x64"
+    c.author?.hasProfilePicture && c.author?.profilePicture
+      ? `http://localhost:3000/${c.author.profilePicture}`
+      : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
   }
-  alt={post.author?.name || "User"}
+  alt={c.author?.name || "User"}
 />
  <div>
                       <div className="fw-semibold small">{c.author?.name || "Unknown"}</div>
@@ -265,9 +265,9 @@ export default function PostDetail() {
                                 <img
   className="rounded-circle me-2 post-avatar"
   src={
-    post.author?.profilePicture
+    post.author?.hasProfilePicture && post.author?.profilePicture
       ? `http://localhost:3000/${post.author.profilePicture}`
-      : "https://placehold.co/64x64"
+      : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
   }
   alt={post.author?.name || "User"}
 />

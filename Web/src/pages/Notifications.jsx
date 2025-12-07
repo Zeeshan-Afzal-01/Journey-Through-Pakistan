@@ -96,7 +96,17 @@ export default function Notifications() {
               {items.map((n) => (
                 <div key={n._id} className={`alert alert-light border mb-0 py-2`}>
                   <div className="d-flex align-items-start gap-2">
-                    <img onClick={() => openUserProfile(n.actor?._id)} src={n.actor?.profilePicture ? `http://localhost:3000/${n.actor.profilePicture}` : 'https://via.placeholder.com/40'} alt="actor" className="rounded-circle" style={{ width: 40, height: 40, objectFit: 'cover', cursor: 'pointer' }} />
+                    <img 
+                      onClick={() => openUserProfile(n.actor?._id)} 
+                      src={
+                        n.actor?.hasProfilePicture && n.actor?.profilePicture 
+                          ? `http://localhost:3000/${n.actor.profilePicture}` 
+                          : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                      } 
+                      alt="actor" 
+                      className="rounded-circle" 
+                      style={{ width: 40, height: 40, objectFit: 'cover', cursor: 'pointer' }} 
+                    />
                     <div className="flex-grow-1">
                       <div className="small">
                         <span role="button" onClick={() => openUserProfile(n.actor?._id)} className="fw-semibold text-decoration-none">{n.actor?.name || 'Someone'}</span> {n.message}

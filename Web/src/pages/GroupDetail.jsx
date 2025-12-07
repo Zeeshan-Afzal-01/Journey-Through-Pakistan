@@ -360,7 +360,7 @@ export default function GroupDetail() {
                   <div className="group-members-preview">
                     {group.members?.slice(0, 8).map((member, idx) => (
                       <div key={idx} className="member-avatar" title={member?.name || 'Member'}>
-                        {member?.profilePicture ? (
+                        {member?.hasProfilePicture && member?.profilePicture ? (
                           <img 
                             src={`http://localhost:3000/${member.profilePicture}`} 
                             alt={member?.name || 'Member'}
@@ -395,7 +395,7 @@ export default function GroupDetail() {
                   <div className="d-flex align-items-center gap-2 mb-3">
                     <img 
                       className="rounded-circle" 
-                      src={user?.profilePicture ? `http://localhost:3000/${user.profilePicture}` : '/default-avatar.png'} 
+                      src={user?.hasProfilePicture && user?.profilePicture ? `http://localhost:3000/${user.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
                       alt={user?.name}
                       style={{ width: 40, height: 40 }}
                     />
@@ -904,7 +904,7 @@ function ManageGroupModal({ group, user, onClose, onGroupUpdate }) {
                         <div key={f._id} className="d-flex align-items-center justify-content-between border rounded p-2">
                           <div className="d-flex align-items-center gap-2">
                             <img 
-                              src={f.profilePicture ? `http://localhost:3000/${f.profilePicture}` : '/default-avatar.png'} 
+                              src={f.hasProfilePicture && f.profilePicture ? `http://localhost:3000/${f.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
                               className="rounded-circle"
                               style={{ width: 32, height: 32 }}
                             />
@@ -935,7 +935,7 @@ function ManageGroupModal({ group, user, onClose, onGroupUpdate }) {
                         <div key={member._id || member} className="d-flex align-items-center justify-content-between border rounded p-2">
                           <div className="d-flex align-items-center gap-2">
                             <img 
-                              src={member.profilePicture ? `http://localhost:3000/${member.profilePicture}` : '/default-avatar.png'} 
+                              src={member.hasProfilePicture && member.profilePicture ? `http://localhost:3000/${member.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
                               className="rounded-circle"
                               style={{ width: 32, height: 32 }}
                             />
@@ -974,7 +974,7 @@ function ManageGroupModal({ group, user, onClose, onGroupUpdate }) {
                       <div key={requester._id || requester} className="d-flex align-items-center justify-content-between border rounded p-3">
                         <div className="d-flex align-items-center gap-2">
                           <img 
-                            src={requester.profilePicture ? `http://localhost:3000/${requester.profilePicture}` : '/default-avatar.png'} 
+                            src={requester.hasProfilePicture && requester.profilePicture ? `http://localhost:3000/${requester.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
                             className="rounded-circle"
                             style={{ width: 40, height: 40 }}
                           />
@@ -1109,7 +1109,7 @@ function GroupPostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostD
         <div className="d-flex align-items-center gap-2 mb-2 position-relative">
           <img 
             className="rounded-circle comm-avatar" 
-            src={post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "/default-avatar.png"} 
+            src={post.author?.hasProfilePicture && post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"} 
             alt={post.author?.name || "User"}
             style={{ width: 40, height: 40, objectFit: 'cover' }}
           />
@@ -1385,7 +1385,7 @@ function GroupCommentThread({ comments, onReply, replyingId, replyText, onReplyT
           <div className="d-flex align-items-start gap-2">
             <img 
               className="rounded-circle" 
-              src={c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : '/default-avatar.png'} 
+              src={c.author?.hasProfilePicture && c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
               alt={c.author?.name || 'User'} 
               style={{ width: 28, height: 28, objectFit: 'cover' }} 
             />

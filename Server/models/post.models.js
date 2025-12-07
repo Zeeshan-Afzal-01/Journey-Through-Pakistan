@@ -23,6 +23,7 @@ const postSchema = new mongoose.Schema(
     privacy: { type: String, enum: ["public", "friends"], default: "public" },
     group: { type: mongoose.Schema.Types.ObjectId, ref: "Group" }, // Optional: if post belongs to a group
     taggedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // Users tagged in this post
+    hashtags: [{ type: String }], // Hashtags extracted from post text
 
   },
   { timestamps: true }
