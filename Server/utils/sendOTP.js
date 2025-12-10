@@ -1,27 +1,28 @@
 import nodemailer from 'nodemailer';
+import { getSMTPConfig, getEmailFrom } from './settingsHelper.js';
 
+const sendOTP = async (email, otp) => {
+  try {
+    // Get SMTP config from settings
+    const smtpConfig = await getSMTPConfig();
+    const fromInfo = await getEmailFrom();
 
-const sendOTP = async (email, otp)=>{
-
-    const transporter = nodemailer.createTransport(
-        {
-
-            host: 'smtp.gmail.com',
-            port: 465,
-            secure: true, // use SSL/TLS
-            service:'gmail',
-            auth: {
-            user: process.env.EMAIL,
-            pass: process.env.PASSWORD
-            }
-        }
-    );
+    const transporter = nodemailer.createTransport({
+      host: smtpConfig.host,
+      port: smtpConfig.port,
+      secure: smtpConfig.secure,
+      service: smtpConfig.host.includes('gmail') ? 'gmail' : undefined,
+      auth: {
+        user: smtpConfig.auth.user,
+        pass: smtpConfig.auth.pass
+      }
+    });
 
     const mailOptions = {
-        from: process.env.EMAIL,
-        to: email,
-        subject: "OTP Verification.",
-        text: `Hello,
+      from: `"${fromInfo.name}" <${fromInfo.email}>`,
+      to: email,
+      subject: "OTP Verification",
+      text: `Hello,
 Thank you for registering on our platform.
 
 Your One-Time Password (OTP) for email verification is: ${otp}
@@ -31,13 +32,15 @@ Please enter this OTP to verify your account. This code will expire in 10 minute
 If you did not request this, please ignore this email.
 
 Best regards,  
-The Journey Thorugh Pakistan Team`
-
-
+The Journey Through Pakistan Team`
     };
 
     await transporter.sendMail(mailOptions);
     console.log("OTP has been sent to email: ", email);
+  } catch (error) {
+    console.error("Error sending OTP email:", error);
+    throw error;
+  }
 }
 
 

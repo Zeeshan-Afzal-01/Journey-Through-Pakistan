@@ -135,6 +135,7 @@ export const createPost = async (req, res) => {
 export const listPosts = async (req, res) => {
   try {
     const { author, q, group, excludeGroup } = req.query;
+    const currentUserId = req.user?.id;
     const filter = {};
     if (author) filter.author = author;
     if (group) filter.group = group;
@@ -149,15 +150,31 @@ export const listPosts = async (req, res) => {
     }
     let posts = await Post.find(filter)
       .sort({ createdAt: -1 })
-      .populate("author", "name profilePicture city")
+      .populate("author", "name profilePicture city isProfilePrivate friends")
       .populate("group", "name")
       .populate("taggedUsers", "name profilePicture")
       .populate({ path: "comments.author", select: "name profilePicture city" })
       .populate({ path: "comments.replies.author", select: "name profilePicture city" });
-    // Convert and recursively populate deeper replies
-    const out = [];
+    
+    // Filter posts based on privacy settings
+    const filteredPosts = [];
     for (let p of posts) {
       const obj = p.toObject();
+      
+      // Check privacy: if author has private profile and current user is not a friend, skip this post
+      if (obj.author && obj.author.isProfilePrivate && author) {
+        // Only check privacy when fetching posts by a specific author
+        if (currentUserId && obj.author._id.toString() !== currentUserId.toString()) {
+          const authorFriends = obj.author.friends || [];
+          const isFriend = authorFriends.some(friend => {
+            const friendId = typeof friend === 'string' ? friend : friend._id?.toString() || friend.toString();
+            return friendId === currentUserId.toString();
+          });
+          if (!isFriend) {
+            continue; // Skip this post - private profile and not a friend
+          }
+        }
+      }
       
       // Add hasProfilePicture to author
       if (obj.author) {
@@ -190,9 +207,9 @@ export const listPosts = async (req, res) => {
         addHasProfilePictureToComments(obj.comments);
       }
       
-      out.push(obj);
+      filteredPosts.push(obj);
     }
-    res.json(out);
+    res.json(filteredPosts);
   } catch (err) {
     res.status(500).json({ message: "Failed to fetch posts", error: err.message });
   }

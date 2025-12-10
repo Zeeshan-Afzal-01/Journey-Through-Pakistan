@@ -26,6 +26,17 @@ const userSchema = new mongoose.Schema(
       default: "tourist",
     },
 
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
+
+    adminRole: {
+      type: String,
+      enum: ["ceo", "supervisor", "manager", "team_admin", null],
+      default: null,
+    },
+
     phone: {
       type: String,
     },
@@ -63,6 +74,10 @@ const userSchema = new mongoose.Schema(
     friendRequests: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // user IDs who sent a friend request to this user
     friends: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }], // confirmed friends
     savedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "Post" }], // saved posts by the user
+    isProfilePrivate: {
+      type: Boolean,
+      default: false, // false = public, true = private
+    },
   },
 
   {

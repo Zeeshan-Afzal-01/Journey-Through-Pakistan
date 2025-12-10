@@ -1,0 +1,1052 @@
+{
+  "database": "/zna152191_db_user:UrP1Xt4kIlE20FDS@cluster0.tifmdlj.mongodb.net/JTP",
+  "timestamp": "2025-12-10T19:31:18.680Z",
+  "collections": {
+    "users": [
+      {
+        "_id": "691cfcc0a8fb0600e47876ca",
+        "name": "Zeeshan Afzal",
+        "email": "zna152191@gmail.com",
+        "password": "$2b$10$AR9vOWPNrFVp3/uiyymhIOsVpRMkr0jPuPT5psgT/UuXBRlYNLSO2",
+        "role": "tourist",
+        "isActive": true,
+        "profilePicture": "uploads/profiles/1765127084006-143308408.jpg",
+        "otpVerify": null,
+        "otpExpiry": null,
+        "sentRequests": [],
+        "friendRequests": [],
+        "friends": [
+          "6935ac5dc4802c8cc6af12b5"
+        ],
+        "savedPosts": [],
+        "createdAt": "2025-11-18T23:09:52.018Z",
+        "updatedAt": "2025-12-10T18:51:17.632Z",
+        "__v": 13,
+        "coverPhoto": "uploads/covers/1765127173077-1_-2R5C59YZ-TdixnyrcSdmw_2x.jpg",
+        "city": "Lahore, Punjab Pakistan",
+        "isProfilePrivate": true,
+        "isAdmin": false
+      },
+      {
+        "_id": "6935ac5dc4802c8cc6af12b5",
+        "name": "Ayesha khan",
+        "email": "gaotg2244@gmail.com",
+        "password": "$2b$10$r93pCKpAy62lHuk2EVRKKO.bDQiTGrhrLQYM/7ZI7R2PVYodxWToi",
+        "role": "local",
+        "isActive": true,
+        "profilePicture": "uploads/gaotg2244@gmail.com/Ayesha khan-images.jfif",
+        "otpVerify": null,
+        "otpExpiry": null,
+        "sentRequests": [],
+        "friendRequests": [],
+        "friends": [
+          "691cfcc0a8fb0600e47876ca"
+        ],
+        "savedPosts": [
+          "6939bf1721dffbb6edf6996b"
+        ],
+        "createdAt": "2025-12-07T16:33:33.037Z",
+        "updatedAt": "2025-12-10T18:51:17.848Z",
+        "__v": 12,
+        "coverPhoto": "uploads/covers/1765125381620-289ef330-8f61-43a1-ac45-18e2e01b8e88.jpg",
+        "city": "Lahore",
+        "isProfilePrivate": false,
+        "country": "Pakistan",
+        "phone": "03123456789",
+        "isAdmin": false
+      },
+      {
+        "_id": "6938452aeae5c069a3d82d64",
+        "name": "JTP CEO",
+        "email": "ceo@jtp.com",
+        "password": "$2b$10$AR9vOWPNrFVp3/uiyymhIOsVpRMkr0jPuPT5psgT/UuXBRlYNLSO2",
+        "role": "local",
+        "isAdmin": true,
+        "phone": "+92 300 1111111",
+        "city": "Islamabad",
+        "country": "Pakistan",
+        "isActive": true,
+        "profilePicture": "uploads/admin@jtp.com/Admin User-profile.jpg",
+        "coverPhoto": "uploads/covers/cover-admin.jpg",
+        "isProfilePrivate": false,
+        "friends": [],
+        "sentRequests": [],
+        "friendRequests": [],
+        "savedPosts": [],
+        "createdAt": "2024-01-01T00:00:00.000Z",
+        "updatedAt": "2024-01-25T12:00:00.000Z",
+        "adminRole": "ceo"
+      },
+      {
+        "_id": "693852594130766350c8d132",
+        "name": "Be Happy",
+        "auth0Id": "google-oauth2|102241521521596172598",
+        "email": "khan152191@gmail.com",
+        "role": "tourist",
+        "isAdmin": true,
+        "adminRole": "supervisor",
+        "isActive": true,
+        "profilePicture": "https://lh3.googleusercontent.com/a/ACg8ocKfxe1hZbNPIJlJHxfPOj_h6S4jwb2hJjD1xWSo-NGn8_RS84CC=s96-c",
+        "sentRequests": [],
+        "friendRequests": [],
+        "friends": [],
+        "savedPosts": [],
+        "isProfilePrivate": false,
+        "createdAt": "2025-12-09T16:46:17.445Z",
+        "updatedAt": "2025-12-10T19:19:21.082Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c63121dffbb6edf6af1f",
+        "name": "ZA Services",
+        "auth0Id": "google-oauth2|117501824500538835507",
+        "email": "zaservices6@gmail.com",
+        "role": "tourist",
+        "isAdmin": true,
+        "adminRole": "manager",
+        "isActive": true,
+        "profilePicture": "https://lh3.googleusercontent.com/a/ACg8ocJ-D6iXxQeZuFwmjcHQF_FB5IG8Ab2LOA-Nnad7B1ksjkRQFg=s96-c",
+        "sentRequests": [],
+        "friendRequests": [],
+        "friends": [],
+        "savedPosts": [],
+        "isProfilePrivate": false,
+        "createdAt": "2025-12-10T19:12:49.383Z",
+        "updatedAt": "2025-12-10T19:21:46.211Z",
+        "__v": 0,
+        "city": "",
+        "country": "",
+        "phone": ""
+      }
+    ],
+    "securitylogs": [
+      {
+        "_id": "6939adb199c981416ec7c7dc",
+        "eventType": "role_change",
+        "adminId": "6938452aeae5c069a3d82d64",
+        "targetUserId": "6935ac5dc4802c8cc6af12b5",
+        "ipAddress": "::1",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        "description": "Admin updated user Ayesha khan: profile updated",
+        "details": {
+          "targetUser": "gaotg2244@gmail.com",
+          "changes": [
+            "name",
+            "email",
+            "phone",
+            "city",
+            "country",
+            "role",
+            "isActive",
+            "isProfilePrivate"
+          ],
+          "isPasswordChange": false
+        },
+        "severity": "medium",
+        "status": "success",
+        "createdAt": "2025-12-10T17:28:17.098Z",
+        "updatedAt": "2025-12-10T17:28:17.098Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939af30fdc4861144d12b98",
+        "eventType": "role_change",
+        "adminId": "6938452aeae5c069a3d82d64",
+        "targetUserId": "6935ac5dc4802c8cc6af12b5",
+        "ipAddress": "::1",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        "description": "Admin updated user Ayesha khan: profile updated",
+        "details": {
+          "targetUser": "gaotg2244@gmail.com",
+          "changes": [
+            "name",
+            "email",
+            "phone",
+            "city",
+            "country",
+            "role",
+            "isActive",
+            "isProfilePrivate"
+          ],
+          "isPasswordChange": false
+        },
+        "severity": "medium",
+        "status": "success",
+        "createdAt": "2025-12-10T17:34:40.621Z",
+        "updatedAt": "2025-12-10T17:34:40.621Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939b568cd01b408d6b35e0e",
+        "eventType": "data_export",
+        "adminId": "6938452aeae5c069a3d82d64",
+        "ipAddress": "::1",
+        "description": "Exported 2 security log(s) as JSON",
+        "details": {
+          "format": "json",
+          "count": 2
+        },
+        "severity": "low",
+        "status": "success",
+        "createdAt": "2025-12-10T18:01:12.398Z",
+        "updatedAt": "2025-12-10T18:01:12.398Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c7b921dffbb6edf6b098",
+        "eventType": "role_change",
+        "adminId": "6938452aeae5c069a3d82d64",
+        "targetUserId": "693852594130766350c8d132",
+        "ipAddress": "::1",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        "description": "Admin role changed for Be Happy: manager → supervisor",
+        "details": {
+          "targetUser": "khan152191@gmail.com",
+          "oldAdminRole": "manager",
+          "newAdminRole": "supervisor",
+          "wasAdmin": true,
+          "isNowAdmin": true
+        },
+        "severity": "critical",
+        "status": "success",
+        "createdAt": "2025-12-10T19:19:21.284Z",
+        "updatedAt": "2025-12-10T19:19:21.284Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c84921dffbb6edf6b0eb",
+        "eventType": "role_change",
+        "adminId": "6938452aeae5c069a3d82d64",
+        "targetUserId": "6939c63121dffbb6edf6af1f",
+        "ipAddress": "::1",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        "description": "Admin updated user ZA Services: profile updated",
+        "details": {
+          "targetUser": "zaservices6@gmail.com",
+          "changes": [
+            "name",
+            "email",
+            "phone",
+            "city",
+            "country",
+            "role",
+            "isActive",
+            "isProfilePrivate"
+          ],
+          "isPasswordChange": false
+        },
+        "severity": "medium",
+        "status": "success",
+        "createdAt": "2025-12-10T19:21:45.635Z",
+        "updatedAt": "2025-12-10T19:21:45.635Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c84a21dffbb6edf6b0f0",
+        "eventType": "role_change",
+        "adminId": "6938452aeae5c069a3d82d64",
+        "targetUserId": "6939c63121dffbb6edf6af1f",
+        "ipAddress": "::1",
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/142.0.0.0 Safari/537.36",
+        "description": "Admin role changed for ZA Services: none → manager",
+        "details": {
+          "targetUser": "zaservices6@gmail.com",
+          "oldAdminRole": "none",
+          "newAdminRole": "manager",
+          "wasAdmin": false,
+          "isNowAdmin": true
+        },
+        "severity": "critical",
+        "status": "success",
+        "createdAt": "2025-12-10T19:21:46.403Z",
+        "updatedAt": "2025-12-10T19:21:46.403Z",
+        "__v": 0
+      }
+    ],
+    "notifications": [
+      {
+        "_id": "6935ad2ac4802c8cc6af13af",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "friend_request",
+        "message": "sent you a friend request",
+        "createdAt": "2025-12-07T16:36:58.578Z",
+        "updatedAt": "2025-12-07T16:37:46.135Z",
+        "__v": 0,
+        "readAt": "2025-12-07T16:37:46.134Z"
+      },
+      {
+        "_id": "6935ad51c4802c8cc6af1427",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "friend_accept",
+        "message": "accepted your friend request",
+        "createdAt": "2025-12-07T16:37:37.825Z",
+        "updatedAt": "2025-12-07T16:37:37.825Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935ad6ac4802c8cc6af1519",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "like",
+        "post": "6935aa6ec4802c8cc6af11c2",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T16:38:02.608Z",
+        "updatedAt": "2025-12-09T12:23:01.464Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:23:01.463Z"
+      },
+      {
+        "_id": "6935b4f5e3c9c5cd2439feeb",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "comment",
+        "post": "6935ad8ec4802c8cc6af1567",
+        "message": "commented on your post",
+        "createdAt": "2025-12-07T17:10:13.773Z",
+        "updatedAt": "2025-12-07T17:10:13.773Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935b507e3c9c5cd2439ff54",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "like",
+        "post": "6935ad8ec4802c8cc6af1567",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T17:10:31.107Z",
+        "updatedAt": "2025-12-07T17:10:31.107Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935c9c6f93d8c5e8eeeb47a",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "friend_request",
+        "message": "sent you a friend request",
+        "createdAt": "2025-12-07T18:39:02.271Z",
+        "updatedAt": "2025-12-09T12:23:01.464Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:23:01.463Z"
+      },
+      {
+        "_id": "6935c9eaf93d8c5e8eeeb579",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "friend_accept",
+        "message": "accepted your friend request",
+        "createdAt": "2025-12-07T18:39:38.640Z",
+        "updatedAt": "2025-12-07T18:39:38.640Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935d59adb0b3c2db2103c1a",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "like",
+        "post": "6935ad8ec4802c8cc6af1567",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T19:29:30.255Z",
+        "updatedAt": "2025-12-07T19:29:30.255Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935d59ddb0b3c2db2103c30",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "like",
+        "post": "6935ad8ec4802c8cc6af1567",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T19:29:33.483Z",
+        "updatedAt": "2025-12-07T19:29:33.483Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935d782472eb32803b0c9e0",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "like",
+        "post": "6935ad8ec4802c8cc6af1567",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T19:37:38.884Z",
+        "updatedAt": "2025-12-07T19:37:38.884Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935d78d472eb32803b0c9fb",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "comment",
+        "post": "6935ad8ec4802c8cc6af1567",
+        "message": "commented on your post",
+        "createdAt": "2025-12-07T19:37:49.666Z",
+        "updatedAt": "2025-12-07T19:37:49.666Z",
+        "__v": 0
+      },
+      {
+        "_id": "6935d7c2472eb32803b0ca9b",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "like",
+        "post": "6935b55ce3c9c5cd243a015d",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T19:38:42.942Z",
+        "updatedAt": "2025-12-09T12:23:01.464Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:23:01.463Z"
+      },
+      {
+        "_id": "6935d7ef472eb32803b0cb05",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "like",
+        "post": "6935aa6ec4802c8cc6af11c2",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T19:39:27.069Z",
+        "updatedAt": "2025-12-09T12:23:01.464Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:23:01.463Z"
+      },
+      {
+        "_id": "6935d7f5472eb32803b0cb19",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "like",
+        "post": "6935aa6ec4802c8cc6af11c2",
+        "message": "liked your post",
+        "createdAt": "2025-12-07T19:39:33.748Z",
+        "updatedAt": "2025-12-09T12:23:01.464Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:23:01.463Z"
+      },
+      {
+        "_id": "6935d801472eb32803b0cb34",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "comment",
+        "post": "6935aa6ec4802c8cc6af11c2",
+        "message": "commented on your post",
+        "createdAt": "2025-12-07T19:39:45.586Z",
+        "updatedAt": "2025-12-09T12:23:01.464Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:23:01.463Z"
+      },
+      {
+        "_id": "693825ca6c4d61f2303290b2",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "friend_request",
+        "message": "sent you a friend request",
+        "createdAt": "2025-12-09T13:36:10.921Z",
+        "updatedAt": "2025-12-09T17:01:35.444Z",
+        "__v": 0,
+        "readAt": "2025-12-09T17:01:35.444Z"
+      },
+      {
+        "_id": "693827956c4d61f2303295c6",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "friend_accept",
+        "message": "accepted your friend request",
+        "createdAt": "2025-12-09T13:43:49.607Z",
+        "updatedAt": "2025-12-09T13:43:49.607Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939405309fe2da1fb97f5d9",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6938452aeae5c069a3d82d64",
+        "type": "admin_announcement",
+        "message": "Website is in under process wait for 3-4 working days",
+        "title": "Website under Construction",
+        "__v": 0,
+        "createdAt": "2025-12-10T09:41:39.470Z",
+        "updatedAt": "2025-12-10T09:41:39.470Z"
+      },
+      {
+        "_id": "6939405309fe2da1fb97f5da",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "6938452aeae5c069a3d82d64",
+        "type": "admin_announcement",
+        "message": "Website is in under process wait for 3-4 working days",
+        "title": "Website under Construction",
+        "__v": 0,
+        "createdAt": "2025-12-10T09:41:39.471Z",
+        "updatedAt": "2025-12-10T09:41:39.471Z"
+      },
+      {
+        "_id": "6939431a36c082f55d4e265f",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6938452aeae5c069a3d82d64",
+        "type": "admin_announcement",
+        "message": "webiste down for 3-4 hours",
+        "title": "Technical problem Faced in Server",
+        "__v": 0,
+        "createdAt": "2025-12-10T09:53:30.076Z",
+        "updatedAt": "2025-12-10T09:53:30.076Z"
+      },
+      {
+        "_id": "6939431a36c082f55d4e2660",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "6938452aeae5c069a3d82d64",
+        "type": "admin_announcement",
+        "message": "webiste down for 3-4 hours",
+        "title": "Technical problem Faced in Server",
+        "__v": 0,
+        "createdAt": "2025-12-10T09:53:30.077Z",
+        "updatedAt": "2025-12-10T09:53:30.077Z"
+      },
+      {
+        "_id": "6939c05b21dffbb6edf69d09",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "status_message",
+        "status": "6939beb321dffbb6edf698c1",
+        "message": "sent you a message on your status",
+        "createdAt": "2025-12-10T18:47:55.878Z",
+        "updatedAt": "2025-12-10T18:47:55.878Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c08b21dffbb6edf69deb",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "like",
+        "post": "693826da6c4d61f2303293e7",
+        "message": "liked your post",
+        "createdAt": "2025-12-10T18:48:43.093Z",
+        "updatedAt": "2025-12-10T18:48:43.093Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c08e21dffbb6edf69dfc",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "like",
+        "post": "693826da6c4d61f2303293e7",
+        "message": "liked your post",
+        "createdAt": "2025-12-10T18:48:46.528Z",
+        "updatedAt": "2025-12-10T18:48:46.528Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c09a21dffbb6edf69e29",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "comment",
+        "post": "693826da6c4d61f2303293e7",
+        "message": "commented on your post",
+        "createdAt": "2025-12-10T18:48:58.727Z",
+        "updatedAt": "2025-12-10T18:48:58.727Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c11a21dffbb6edf6a0f4",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "actor": "6935ac5dc4802c8cc6af12b5",
+        "type": "friend_request",
+        "message": "sent you a friend request",
+        "createdAt": "2025-12-10T18:51:06.227Z",
+        "updatedAt": "2025-12-10T18:51:06.227Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939c12621dffbb6edf6a17d",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "actor": "691cfcc0a8fb0600e47876ca",
+        "type": "friend_accept",
+        "message": "accepted your friend request",
+        "createdAt": "2025-12-10T18:51:18.045Z",
+        "updatedAt": "2025-12-10T18:51:18.045Z",
+        "__v": 0
+      }
+    ],
+    "notificationdrafts": [],
+    "conversations": [
+      {
+        "_id": "6935ae600352b4030c5f2cad",
+        "participants": [
+          "6935ac5dc4802c8cc6af12b5",
+          "691cfcc0a8fb0600e47876ca"
+        ],
+        "lastMessageAt": "2025-12-10T19:02:41.747Z",
+        "createdAt": "2025-12-07T16:42:08.226Z",
+        "updatedAt": "2025-12-10T19:02:41.748Z",
+        "__v": 0,
+        "lastMessage": "6939c3d121dffbb6edf6aafb"
+      }
+    ],
+    "settings": [
+      {
+        "_id": "69398ce4e1e1ff6300f9483a",
+        "appName": "Journey Through Pakistan",
+        "appUrl": "https://journeythroughpakistan.com",
+        "timezone": "Asia/Karachi",
+        "language": "en",
+        "dateFormat": "DD/MM/YYYY",
+        "enableRegistration": true,
+        "requireEmailVerification": true,
+        "port": 3000,
+        "nodeEnv": "development",
+        "frontendUrl": "http://localhost:5173",
+        "mongodbUri": "mongodb+srv://zna152191_db_user:UrP1Xt4kIlE20FDS@cluster0.tifmdlj.mongodb.net/JTP",
+        "secretKey": "mynameiszeeshan",
+        "requireStrongPassword": true,
+        "minPasswordLength": 8,
+        "enable2FA": false,
+        "sessionTimeout": 30,
+        "maxLoginAttempts": 5,
+        "smtpHost": "smtp.gmail.com",
+        "smtpPort": 587,
+        "smtpUser": "",
+        "smtpPassword": "",
+        "fromEmail": "noreply@journeythroughpakistan.com",
+        "fromName": "Journey Through Pakistan",
+        "enableSSL": true,
+        "auth0Domain": "dev-jbxchohd5vjblovh.us.auth0.com",
+        "auth0ClientId": "mCVmKUI4FR7JD5wZ1gYI6pHEISseLOXD",
+        "auth0ClientSecret": "mpRDJq9QCAjV11cFsA7YntXCJCxJ0MP2Gt5oASrazI9tc7fuLz-ZIM6xItFNdLQl",
+        "auth0CallbackUrl": "http://localhost:3000/auth/callback",
+        "googleApiKey": "AIzaSyC0nmzgKMHcUXT7hifN3f8acNVlFO51ptE",
+        "maintenanceMode": false,
+        "maxFileUploadSize": 10,
+        "enableCaching": true,
+        "cacheDuration": 3600,
+        "enableLogging": true,
+        "logLevel": "info",
+        "enableAPI": true,
+        "apiRateLimit": 100,
+        "apiKeyExpiry": 90,
+        "defaultRole": "tourist",
+        "allowProfileEdit": true,
+        "maxProfilePictureSize": 5,
+        "enableFriendRequests": true,
+        "enablePushNotifications": true,
+        "enableEmailNotifications": true,
+        "enableInAppNotifications": true,
+        "createdAt": "2025-12-10T15:08:20.766Z",
+        "updatedAt": "2025-12-10T17:20:06.676Z",
+        "__v": 0
+      }
+    ],
+    "groups": [
+      {
+        "_id": "691cfd09a8fb0600e478770e",
+        "name": "Lahore Tourist Group",
+        "description": "",
+        "admin": "691cfcc0a8fb0600e47876ca",
+        "members": [
+          "691cfcc0a8fb0600e47876ca",
+          "6935ac5dc4802c8cc6af12b5"
+        ],
+        "pendingRequests": [],
+        "coverImage": "",
+        "privacy": "public",
+        "category": "Travel",
+        "location": "Lahore",
+        "rules": [],
+        "tags": [],
+        "createdAt": "2025-11-18T23:11:05.030Z",
+        "updatedAt": "2025-12-10T18:54:24.318Z",
+        "__v": 1,
+        "groupPhoto": "uploads/groups/group-1765392439971-270578598.jfif"
+      }
+    ],
+    "hashtags": [
+      {
+        "_id": "6935b55c863eae5b9a4e03df",
+        "tag": "pakistan",
+        "__v": 0,
+        "count": 2,
+        "lastUsed": "2025-12-10T18:42:31.937Z"
+      },
+      {
+        "_id": "6935b55c863eae5b9a4e03e0",
+        "tag": "pakistanzindabad",
+        "__v": 0,
+        "count": 1,
+        "lastUsed": "2025-12-07T17:11:56.786Z"
+      },
+      {
+        "_id": "6939bf18397c6c094b0481a6",
+        "tag": "softwareengineer",
+        "__v": 0,
+        "count": 1,
+        "lastUsed": "2025-12-10T18:42:31.711Z"
+      }
+    ],
+    "messages": [
+      {
+        "_id": "6935ae670352b4030c5f2cc5",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "6935ac5dc4802c8cc6af12b5",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "text": "hello",
+        "read": true,
+        "createdAt": "2025-12-07T16:42:15.561Z",
+        "updatedAt": "2025-12-07T16:42:23.124Z",
+        "__v": 0,
+        "readAt": "2025-12-07T16:42:23.123Z"
+      },
+      {
+        "_id": "6935ae770352b4030c5f2d00",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "691cfcc0a8fb0600e47876ca",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "text": "how are you ayesha",
+        "read": true,
+        "createdAt": "2025-12-07T16:42:31.724Z",
+        "updatedAt": "2025-12-07T16:42:31.744Z",
+        "__v": 0,
+        "readAt": "2025-12-07T16:42:31.744Z"
+      },
+      {
+        "_id": "6935ae891cd08950d2f8870c",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "6935ac5dc4802c8cc6af12b5",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "text": "i am fine what about you?",
+        "read": true,
+        "createdAt": "2025-12-07T16:42:49.934Z",
+        "updatedAt": "2025-12-07T16:42:49.959Z",
+        "__v": 0,
+        "readAt": "2025-12-07T16:42:49.958Z"
+      },
+      {
+        "_id": "6935afb29f963482b84e4494",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "6935ac5dc4802c8cc6af12b5",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "text": "kia chal raha ha aj kl",
+        "read": true,
+        "createdAt": "2025-12-07T16:47:46.733Z",
+        "updatedAt": "2025-12-07T16:47:46.758Z",
+        "__v": 0,
+        "readAt": "2025-12-07T16:47:46.758Z"
+      },
+      {
+        "_id": "6935afc49f963482b84e44c3",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "691cfcc0a8fb0600e47876ca",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "text": "kuch bhi ni bs free hi aj kl",
+        "read": true,
+        "createdAt": "2025-12-07T16:48:04.498Z",
+        "updatedAt": "2025-12-07T16:48:04.511Z",
+        "__v": 0,
+        "readAt": "2025-12-07T16:48:04.511Z"
+      },
+      {
+        "_id": "6935b518e3c9c5cd2439ffc2",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "6935ac5dc4802c8cc6af12b5",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "text": "ahan good",
+        "read": true,
+        "createdAt": "2025-12-07T17:10:48.499Z",
+        "updatedAt": "2025-12-07T17:41:09.123Z",
+        "__v": 0,
+        "readAt": "2025-12-07T17:41:09.123Z"
+      },
+      {
+        "_id": "6935e2024428817829e5168e",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "691cfcc0a8fb0600e47876ca",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "text": "helo ayesha",
+        "read": true,
+        "createdAt": "2025-12-07T20:22:26.360Z",
+        "updatedAt": "2025-12-07T20:23:18.637Z",
+        "__v": 0,
+        "readAt": "2025-12-07T20:23:18.637Z"
+      },
+      {
+        "_id": "6935e2124428817829e51700",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "691cfcc0a8fb0600e47876ca",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "text": "hn kia hua?",
+        "read": true,
+        "createdAt": "2025-12-07T20:22:42.657Z",
+        "updatedAt": "2025-12-07T20:23:18.637Z",
+        "__v": 0,
+        "readAt": "2025-12-07T20:23:18.637Z"
+      },
+      {
+        "_id": "69381ca5c524cea10753d5a2",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "691cfcc0a8fb0600e47876ca",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "text": "asd",
+        "read": true,
+        "createdAt": "2025-12-09T12:57:09.310Z",
+        "updatedAt": "2025-12-09T12:57:23.217Z",
+        "__v": 0,
+        "readAt": "2025-12-09T12:57:23.216Z"
+      },
+      {
+        "_id": "6939c38321dffbb6edf6a9f1",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "691cfcc0a8fb0600e47876ca",
+        "recipient": "6935ac5dc4802c8cc6af12b5",
+        "text": "hello",
+        "read": true,
+        "createdAt": "2025-12-10T19:01:23.119Z",
+        "updatedAt": "2025-12-10T19:01:31.021Z",
+        "__v": 0,
+        "readAt": "2025-12-10T19:01:31.021Z"
+      },
+      {
+        "_id": "6939c3d121dffbb6edf6aafb",
+        "conversationId": "6935ae600352b4030c5f2cad",
+        "sender": "6935ac5dc4802c8cc6af12b5",
+        "recipient": "691cfcc0a8fb0600e47876ca",
+        "text": "jjeee",
+        "read": true,
+        "createdAt": "2025-12-10T19:02:41.185Z",
+        "updatedAt": "2025-12-10T19:02:41.943Z",
+        "__v": 0,
+        "readAt": "2025-12-10T19:02:41.943Z"
+      }
+    ],
+    "backups": [
+      {
+        "_id": "69399d6f9b02d4f2f7e4cd45",
+        "filename": "backup_2025-12-10T16-18-53.json",
+        "filepath": "D:\\Journey-Through-Pakistan\\Server\\backups\\backup_2025-12-10T16-18-53.json",
+        "size": 21833,
+        "type": "manual",
+        "status": "completed",
+        "createdBy": "6938452aeae5c069a3d82d64",
+        "description": "Manual backup created on 12/10/2025, 9:18:55 PM",
+        "collections": [
+          "users",
+          "notifications",
+          "notificationdrafts",
+          "conversations",
+          "settings",
+          "groups",
+          "hashtags",
+          "messages",
+          "backups",
+          "posts",
+          "status"
+        ],
+        "createdAt": "2025-12-10T16:18:55.801Z",
+        "updatedAt": "2025-12-10T16:18:55.801Z",
+        "__v": 0
+      },
+      {
+        "_id": "6939ca8121dffbb6edf6b384",
+        "filename": "backup_2025-12-10T19-31-10.json",
+        "filepath": "D:\\Journey-Through-Pakistan\\Server\\backups\\backup_2025-12-10T19-31-10.json",
+        "size": 34676,
+        "type": "manual",
+        "status": "completed",
+        "createdBy": "6938452aeae5c069a3d82d64",
+        "description": "Manual backup created on 12/11/2025, 12:31:13 AM",
+        "collections": [
+          "users",
+          "securitylogs",
+          "notifications",
+          "notificationdrafts",
+          "conversations",
+          "settings",
+          "groups",
+          "hashtags",
+          "messages",
+          "backups",
+          "posts",
+          "status"
+        ],
+        "createdAt": "2025-12-10T19:31:13.077Z",
+        "updatedAt": "2025-12-10T19:31:13.077Z",
+        "__v": 0
+      }
+    ],
+    "posts": [
+      {
+        "_id": "6935aa6ec4802c8cc6af11c2",
+        "author": "691cfcc0a8fb0600e47876ca",
+        "text": "hello",
+        "likes": [
+          "6935ac5dc4802c8cc6af12b5"
+        ],
+        "shares": 0,
+        "privacy": "public",
+        "group": null,
+        "taggedUsers": [],
+        "comments": [
+          {
+            "author": "6935ac5dc4802c8cc6af12b5",
+            "text": "hello too",
+            "_id": "6935d801472eb32803b0cb32",
+            "replies": [],
+            "createdAt": "2025-12-07T19:39:45.466Z",
+            "updatedAt": "2025-12-07T19:39:45.466Z"
+          }
+        ],
+        "createdAt": "2025-12-07T16:25:18.221Z",
+        "updatedAt": "2025-12-07T19:39:45.467Z",
+        "__v": 8,
+        "hashtags": []
+      },
+      {
+        "_id": "6935ad8ec4802c8cc6af1567",
+        "author": "6935ac5dc4802c8cc6af12b5",
+        "text": "Hello, how are you?",
+        "likes": [
+          "691cfcc0a8fb0600e47876ca"
+        ],
+        "shares": 0,
+        "privacy": "public",
+        "group": null,
+        "taggedUsers": [],
+        "comments": [
+          {
+            "author": "691cfcc0a8fb0600e47876ca",
+            "text": "we are fine , what about you?",
+            "_id": "6935b4f5e3c9c5cd2439fee9",
+            "replies": [],
+            "createdAt": "2025-12-07T17:10:13.765Z",
+            "updatedAt": "2025-12-07T17:10:13.765Z"
+          },
+          {
+            "author": "691cfcc0a8fb0600e47876ca",
+            "text": "hello",
+            "_id": "6935d78d472eb32803b0c9f9",
+            "replies": [],
+            "createdAt": "2025-12-07T19:37:49.533Z",
+            "updatedAt": "2025-12-07T19:37:49.533Z"
+          }
+        ],
+        "createdAt": "2025-12-07T16:38:38.202Z",
+        "updatedAt": "2025-12-07T19:37:49.533Z",
+        "__v": 9,
+        "hashtags": []
+      },
+      {
+        "_id": "6935b55ce3c9c5cd243a015d",
+        "author": "691cfcc0a8fb0600e47876ca",
+        "text": "Pakistan Zindabad \n#pakistan #pakistanzindabad",
+        "likes": [
+          "6935ac5dc4802c8cc6af12b5"
+        ],
+        "shares": 0,
+        "privacy": "public",
+        "group": null,
+        "taggedUsers": [],
+        "comments": [],
+        "createdAt": "2025-12-07T17:11:56.780Z",
+        "updatedAt": "2025-12-07T19:41:58.177Z",
+        "__v": 6,
+        "hashtags": []
+      },
+      {
+        "_id": "693826da6c4d61f2303293e7",
+        "author": "6935ac5dc4802c8cc6af12b5",
+        "text": "Saraki Lora",
+        "imageUrl": "uploads/posts/1765287642966-538539480_18113218462519205_8339106203420772660_n.jpg",
+        "likes": [
+          "691cfcc0a8fb0600e47876ca"
+        ],
+        "shares": 0,
+        "privacy": "public",
+        "group": null,
+        "taggedUsers": [],
+        "hashtags": [],
+        "comments": [
+          {
+            "author": "691cfcc0a8fb0600e47876ca",
+            "text": "Nice",
+            "_id": "6939c09a21dffbb6edf69e27",
+            "replies": [],
+            "createdAt": "2025-12-10T18:48:58.531Z",
+            "updatedAt": "2025-12-10T18:48:58.531Z"
+          }
+        ],
+        "createdAt": "2025-12-09T13:40:42.976Z",
+        "updatedAt": "2025-12-10T18:48:58.531Z",
+        "__v": 4
+      },
+      {
+        "_id": "6939bf1721dffbb6edf6996b",
+        "author": "691cfcc0a8fb0600e47876ca",
+        "text": "hello i am software Engineer \n#SoftwareEngineer #Pakistan",
+        "likes": [],
+        "shares": 0,
+        "privacy": "public",
+        "group": null,
+        "taggedUsers": [],
+        "hashtags": [
+          "softwareengineer",
+          "pakistan"
+        ],
+        "comments": [
+          {
+            "author": "691cfcc0a8fb0600e47876ca",
+            "text": "ok",
+            "_id": "6939bf8221dffbb6edf69a44",
+            "replies": [
+              {
+                "author": "691cfcc0a8fb0600e47876ca",
+                "text": "asd",
+                "_id": "6939bf8721dffbb6edf69a68",
+                "replies": [],
+                "createdAt": "2025-12-10T18:44:23.504Z",
+                "updatedAt": "2025-12-10T18:44:23.504Z"
+              }
+            ],
+            "createdAt": "2025-12-10T18:44:18.508Z",
+            "updatedAt": "2025-12-10T18:44:23.504Z"
+          }
+        ],
+        "createdAt": "2025-12-10T18:42:31.520Z",
+        "updatedAt": "2025-12-10T18:44:23.504Z",
+        "__v": 2
+      },
+      {
+        "_id": "6939bff821dffbb6edf69b20",
+        "author": "691cfcc0a8fb0600e47876ca",
+        "text": "Hello this is first post of group!",
+        "likes": [],
+        "shares": 0,
+        "privacy": "public",
+        "group": "691cfd09a8fb0600e478770e",
+        "taggedUsers": [],
+        "hashtags": [],
+        "comments": [],
+        "createdAt": "2025-12-10T18:46:16.731Z",
+        "updatedAt": "2025-12-10T18:46:16.731Z",
+        "__v": 0
+      }
+    ],
+    "status": [
+      {
+        "_id": "6939beb321dffbb6edf698c1",
+        "author": "691cfcc0a8fb0600e47876ca",
+        "mediaUrl": "uploads/statuses/1765392051828-289ef330-8f61-43a1-ac45-18e2e01b8e88.jpg",
+        "caption": "asd",
+        "expiresAt": "2025-12-11T18:40:51.833Z",
+        "views": [
+          "6935ac5dc4802c8cc6af12b5",
+          "6935ac5dc4802c8cc6af12b5"
+        ],
+        "reactions": [],
+        "messages": [
+          {
+            "author": "6935ac5dc4802c8cc6af12b5",
+            "text": "adasd",
+            "_id": "6939c05b21dffbb6edf69d02",
+            "createdAt": "2025-12-10T18:47:55.312Z",
+            "updatedAt": "2025-12-10T18:47:55.312Z"
+          }
+        ],
+        "createdAt": "2025-12-10T18:40:51.841Z",
+        "updatedAt": "2025-12-10T18:47:55.313Z",
+        "__v": 3
+      }
+    ]
+  }
+}

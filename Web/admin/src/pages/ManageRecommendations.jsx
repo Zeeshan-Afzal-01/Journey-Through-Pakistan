@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { 
   FiPlus, 
   FiSearch, 
@@ -14,9 +14,18 @@ import {
   FiTag,
   FiImage
 } from 'react-icons/fi';
+import { SkeletonKPICard, SkeletonFilters, SkeletonText } from '../components/SkeletonLoader';
 import './ManageRecommendations.css';
 
 const ManageRecommendations = () => {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
   // Sample recommendation data - matching exact image
   const [recommendations] = useState([
     {
@@ -174,6 +183,38 @@ const ManageRecommendations = () => {
         return 'status-tag';
     }
   };
+
+  if (loading) {
+    return (
+      <div className="manage-recommendations-page">
+        <div className="page-header">
+          <div className="skeleton-text" style={{ width: '250px', height: '32px' }}></div>
+        </div>
+        <div className="kpi-cards-grid">
+          <SkeletonKPICard />
+          <SkeletonKPICard />
+          <SkeletonKPICard />
+          <SkeletonKPICard />
+        </div>
+        <SkeletonFilters />
+        <div className="recommendations-grid">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="skeleton-card" style={{ minHeight: '400px' }}>
+              <div className="skeleton-text" style={{ width: '100px', height: '24px', marginBottom: '16px' }}></div>
+              <div className="skeleton-text" style={{ width: '100%', height: '200px', marginBottom: '16px' }}></div>
+              <div className="skeleton-text" style={{ width: '80%', height: '20px', marginBottom: '8px' }}></div>
+              <div className="skeleton-text" style={{ width: '100%', height: '16px', marginBottom: '8px' }}></div>
+              <div className="skeleton-text" style={{ width: '60%', height: '16px', marginBottom: '16px' }}></div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div className="skeleton-button" style={{ width: '100px', height: '36px' }}></div>
+                <div className="skeleton-button" style={{ width: '100px', height: '36px' }}></div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="manage-recommendations-page">

@@ -1,8 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { FiTrash2, FiCopy, FiCheck, FiX } from 'react-icons/fi';
+import { SkeletonKPICard, SkeletonTable, SkeletonFilters } from '../components/SkeletonLoader';
 import './Moderation.css';
 
 const Moderation = () => {
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
   const [selectedComment, setSelectedComment] = useState(null);
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedItems, setSelectedItems] = useState([]);
@@ -72,8 +81,24 @@ const Moderation = () => {
   const pendingComments = flaggedComments.filter(c => c.status === 'Pending');
   const resolvedCount = flaggedComments.filter(c => c.status === 'Resolved').length;
 
+  if (loading) {
+    return (
+      <div className="main-content">
+        <div className="moderation-stats">
+          <SkeletonKPICard />
+          <SkeletonKPICard />
+          <SkeletonKPICard />
+        </div>
+        <SkeletonFilters />
+        <div className="moderation-table-container">
+          <SkeletonTable rows={5} columns={6} />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="main-content">
+    <div className="moderation-page">
       {/* Statistics Cards */}
       <div className="moderation-stats">
         <div className="stat-card">

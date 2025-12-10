@@ -1,0 +1,21 @@
+.notifications-page .xsmall { font-size: .85rem; }
+.notify-card { border-radius: 12px; }
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.notifications-page .spinning {
+  animation: spin 1s linear infinite;
+}
+
+.notifications-page .admin-notification {
+  background-color: #f0f4ff;
+  border-left: 3px solid #7c3aed;
+}
+

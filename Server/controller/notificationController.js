@@ -27,15 +27,19 @@ export const listMyNotifications = async (req, res) => {
       type: { $ne: 'message' } // Exclude message type notifications
     })
       .sort({ createdAt: -1 })
-      .populate("actor", "name profilePicture")
+      .populate("actor", "name profilePicture isAdmin adminRole")
       .populate("post", "_id")
       .populate("status", "_id")
       .lean();
     
-    // Add hasProfilePicture to actors
+    // Add hasProfilePicture to actors and mark admin announcements
     const notificationsWithPictureCheck = notifications.map(notification => {
       if (notification.actor) {
         notification.actor.hasProfilePicture = checkProfilePictureExists(notification.actor.profilePicture);
+        // For admin announcements, mark that actor is admin
+        if (notification.type === 'admin_announcement') {
+          notification.actor.isAdmin = true;
+        }
       }
       return notification;
     });

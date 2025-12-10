@@ -231,3 +231,101 @@ export const getUnreadCount = async (req, res) => {
     res.status(500).json({ message: "Error getting unread count", error: error.message });
   }
 };
+
+// Get chats with local connections (opposite role users)
+// If user is "local", show chats with "tourist" users
+// If user is "tourist", show chats with "local" users
+export const getLocalChats = async (req, res) => {
+  try {
+    const currentUserId = req.user.id;
+    
+    // Get current user's role
+    const currentUser = await User.findById(currentUserId).select('role').lean();
+    if (!currentUser) {
+      return res.json([]);
+    }
+    
+    // Determine target role: if current user is "local", find "tourist" users, and vice versa
+    const targetRole = currentUser.role === 'local' ? 'tourist' : 'local';
+    
+    // Find conversations with target role users
+    // Get all conversations where current user is a participant
+    const allConversations = await Conversation.find({
+      participants: currentUserId
+    })
+    .populate('participants', 'name email profilePicture city role')
+    .populate('lastMessage')
+    .sort({ lastMessageAt: -1 })
+    .lean();
+    
+    // Filter to only include conversations with target role users (one-on-one)
+    const conversations = allConversations.filter(conv => {
+      if (!conv.participants || conv.participants.length !== 2) return false
+      const otherParticipant = conv.participants.find(p => {
+        const pId = p._id ? p._id.toString() : String(p)
+        return pId !== String(currentUserId)
+      })
+      if (!otherParticipant) return false
+      // Check if other participant has the target role (opposite of current user's role)
+      const participantRole = otherParticipant.role ? String(otherParticipant.role).toLowerCase() : '';
+      return participantRole === targetRole
+    }).slice(0, 10)
+    
+    // Get unread counts
+    const conversationIds = conversations.map(conv => conv._id.toString());
+    const unreadCounts = await Message.aggregate([
+      {
+        $match: {
+          conversationId: { $in: conversationIds },
+          recipient: new mongoose.Types.ObjectId(currentUserId),
+          read: false
+        }
+      },
+      {
+        $group: {
+          _id: '$conversationId',
+          count: { $sum: 1 }
+        }
+      }
+    ]);
+    
+    const unreadMap = {};
+    unreadCounts.forEach(item => {
+      unreadMap[item._id] = item.count;
+    });
+    
+    // Format conversations
+    const formattedConversations = conversations.map(conv => {
+      const convId = conv._id ? conv._id.toString() : String(conv._id);
+      const otherParticipant = conv.participants.find(p => {
+        const pId = p._id ? p._id.toString() : String(p._id || p);
+        return pId !== String(currentUserId);
+      });
+      
+      // Add hasProfilePicture to participants
+      const participantsWithPictureCheck = (conv.participants || []).map(p => {
+        const participantObj = p;
+        participantObj.hasProfilePicture = checkProfilePictureExists(participantObj.profilePicture);
+        return participantObj;
+      });
+      
+      return {
+        _id: conv._id,
+        conversationId: convId,
+        participants: participantsWithPictureCheck,
+        lastMessage: conv.lastMessage,
+        lastMessageAt: conv.lastMessageAt,
+        unread: unreadMap[convId] || 0,
+        otherParticipant: otherParticipant ? {
+          ...otherParticipant,
+          hasProfilePicture: checkProfilePictureExists(otherParticipant.profilePicture)
+        } : null
+      };
+    });
+    
+    res.json(formattedConversations);
+  } catch (error) {
+    console.error('Error fetching local chats:', error);
+    res.status(500).json({ message: "Error fetching local chats", error: error.message });
+  }
+};

@@ -5,9 +5,28 @@ import uploadPost from '../middleware/uploadPost.js';
 
 const router = express.Router();
 
+// Helper to wrap async middleware
+const asyncMiddleware = (fn) => {
+  return async (req, res, next) => {
+    try {
+      const middleware = await fn();
+      if (typeof middleware === 'function') {
+        middleware(req, res, next);
+      } else {
+        next();
+      }
+    } catch (error) {
+      next(error);
+    }
+  };
+};
+
 router.get('/', verifyToken, listPosts);
 router.get('/saved', verifyToken, getSavedPosts);
-router.post('/', verifyToken, uploadPost.single('image'), createPost);
+router.post('/', verifyToken, asyncMiddleware(async () => {
+  const upload = await uploadPost();
+  return upload.single('image');
+}), createPost);
 router.get('/trending-hashtags', verifyToken, trendingHashtags);
 router.get('/:id', verifyToken, getPost);
 router.put('/:id', verifyToken, updatePost);

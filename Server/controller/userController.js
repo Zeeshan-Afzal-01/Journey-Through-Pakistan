@@ -1,5 +1,6 @@
 import User from "../models/user.models.js";
 import Post from "../models/post.models.js";
+import Conversation from "../models/conversation.models.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import sendOTP from "../utils/sendOTP.js";
@@ -7,12 +8,29 @@ import Notification from "../models/notification.models.js";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import {
+  isRegistrationEnabled,
+  isEmailVerificationRequired,
+  getDefaultUserRole,
+  validatePassword,
+  getMaxLoginAttempts,
+  isProfileEditAllowed,
+  areFriendRequestsEnabled,
+  getMaxProfilePictureSize,
+  clearSettingsCache
+} from "../utils/settingsHelper.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export const registerUser = async (req, res) => {
   try {
+    // Check if registration is enabled
+    const registrationEnabled = await isRegistrationEnabled();
+    if (!registrationEnabled) {
+      return res.status(403).json({ message: "Registration is currently disabled. Please contact administrator." });
+    }
+
     const {
       name,
       email,
@@ -29,25 +47,47 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "Please fill all the fields." });
     }
 
+    // Validate password strength
+    const passwordValidation = await validatePassword(password);
+    if (!passwordValidation.valid) {
+      return res.status(400).json({ message: passwordValidation.message });
+    }
+
     const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       return res.status(400).json({ message: "User Already Exists!" });
     }
 
+    // Get default role from settings
+    const defaultRole = await getDefaultUserRole();
+    const userRole = role || defaultRole;
+
+    // Check email verification requirement
+    const emailVerificationRequired = await isEmailVerificationRequired();
+    
     const otp = generateOTP();
     const hashedOTP = await bcrypt.hash(otp, 10);
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
+    // Check profile picture size
+    const maxSize = await getMaxProfilePictureSize();
+    if (req.file && req.file.size > maxSize) {
+      return res.status(400).json({ 
+        message: `Profile picture size exceeds maximum allowed size of ${maxSize / (1024 * 1024)}MB` 
+      });
+    }
+
     const file_name = req.file ? `/${req.file.filename}` : "";
     const image_url = req.file ? `uploads/${email}${file_name}` : undefined;
+    
     const newUser = new User({
       name,
       email,
       password: hashedPassword,
-      role,
+      role: userRole,
       phone,
       shippingAddress: {
         address,
@@ -56,20 +96,26 @@ export const registerUser = async (req, res) => {
         country,
       },
       profilePicture: image_url,
-      otpVerify: hashedOTP,
-      otpExpiry: Date.now() + 5 * 60 * 1000,
+      otpVerify: emailVerificationRequired ? hashedOTP : null,
+      otpExpiry: emailVerificationRequired ? Date.now() + 5 * 60 * 1000 : null,
     });
     const saveNewUser = await newUser.save();
 
-    sendOTP(email, otp);
+    // Send OTP only if email verification is required
+    if (emailVerificationRequired) {
+      sendOTP(email, otp);
+    }
 
     res.status(200).json({
-      message: "User Registered Successfully!",
+      message: emailVerificationRequired 
+        ? "User Registered Successfully! Please verify your email." 
+        : "User Registered Successfully!",
       user: {
         _id: saveNewUser._id,
         name: saveNewUser.name,
         email: saveNewUser.email,
       },
+      requiresVerification: emailVerificationRequired,
     });
   } catch (err) {
     console.error(" Register API Error:", err);
@@ -95,8 +141,19 @@ const checkProfilePictureExists = (profilePicturePath) => {
   }
 };
 
+// Store login attempts (in production, use Redis)
+const loginAttempts = new Map();
+
 export const login = async (req, res) => {
   try {
+    // Check maintenance mode
+    const { isMaintenanceMode } = await import('../utils/settingsHelper.js');
+    if (await isMaintenanceMode()) {
+      return res.status(503).json({ 
+        message: "System is under maintenance. Please try again later." 
+      });
+    }
+
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -111,49 +168,157 @@ export const login = async (req, res) => {
       return res.status(400).json({ message: "User Doesn't Exists!" });
     }
 
+    // Check login attempts
+    const maxAttempts = await getMaxLoginAttempts();
+    const attemptKey = `${email}_${req.ip}`;
+    const attempts = loginAttempts.get(attemptKey) || { count: 0, lastAttempt: Date.now() };
+    
+    // Reset attempts after 15 minutes
+    if (Date.now() - attempts.lastAttempt > 15 * 60 * 1000) {
+      attempts.count = 0;
+    }
+
+    if (attempts.count >= maxAttempts) {
+      return res.status(429).json({ 
+        message: `Too many login attempts. Please try again after 15 minutes.` 
+      });
+    }
+
     const matchPasswords = await bcrypt.compare(
       password,
       existingUser.password
     );
+    
     if (!matchPasswords) {
-      return res.status(401).json({ message: "Incorrect Password!" });
+      attempts.count += 1;
+      attempts.lastAttempt = Date.now();
+      loginAttempts.set(attemptKey, attempts);
+      
+      // Log failed login attempt
+      try {
+        const { createSecurityLog } = await import('../controller/securityLogController.js');
+        const { getClientIP } = await import('../utils/getClientIP.js');
+        await createSecurityLog({
+          eventType: 'login_failed',
+          userId: existingUser._id,
+          ipAddress: getClientIP(req),
+          userAgent: req.headers['user-agent'] || 'unknown',
+          description: `Failed login attempt for ${email}. ${maxAttempts - attempts.count} attempts remaining.`,
+          severity: attempts.count >= maxAttempts - 1 ? 'high' : 'medium',
+          status: 'failed',
+          details: {
+            email,
+            attemptCount: attempts.count,
+            maxAttempts
+          }
+        });
+      } catch (logError) {
+        console.error('Error logging failed login:', logError);
+      }
+      
+      return res.status(401).json({ 
+        message: `Incorrect Password! ${maxAttempts - attempts.count} attempts remaining.` 
+      });
     }
 
+    // Reset attempts on successful login
+    loginAttempts.delete(attemptKey);
+
+    // Log successful login
+    try {
+      const { createSecurityLog } = await import('../controller/securityLogController.js');
+      const { getClientIP } = await import('../utils/getClientIP.js');
+      await createSecurityLog({
+        eventType: isAdminLogin ? 'login_success' : 'login_success',
+        userId: existingUser._id,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'] || 'unknown',
+        description: `Successful ${isAdminLogin ? 'admin ' : ''}login for ${email}`,
+        severity: isAdminLogin ? 'medium' : 'low',
+        status: 'success',
+        details: {
+          email,
+          isAdmin: isAdminLogin,
+          adminRole: existingUser.adminRole
+        }
+      });
+    } catch (logError) {
+      console.error('Error logging successful login:', logError);
+    }
+
+    // Check if this is an admin login request (from admin panel)
+    const isAdminLogin = req.headers['x-admin-panel'] === 'true' || 
+                         req.headers.referer?.includes('localhost:5174') ||
+                         req.query.admin === 'true';
+    
+    // If it's an admin login request, verify the user is actually an admin
+    if (isAdminLogin) {
+      if (!existingUser.isAdmin || !existingUser.adminRole) {
+        return res.status(403).json({ 
+          message: "Access Denied: You are not authorized to access the admin panel." 
+        });
+      }
+    }
+    
     const token = jwt.sign({ id: existingUser._id }, process.env.SECRET_KEY, {
       expiresIn: "1d",
     });
     
     // Check if profile picture file exists
-    const hasProfilePicture = checkProfilePictureExists(existingUser.profilePicture);
+    let hasProfilePicture = false;
+    try {
+      hasProfilePicture = checkProfilePictureExists(existingUser.profilePicture);
+    } catch (error) {
+      console.error("Error checking profile picture:", error);
+      hasProfilePicture = false;
+    }
+    
+    const cookieName = isAdminLogin ? "adminToken" : "appToken";
     
     res
-      .cookie("appToken", token, {
+      .cookie(cookieName, token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 24 * 60 * 60 * 1000,
+        path: "/", // Ensure cookie is available
       })
       .status(200)
       .json({
         message: "Login Successful!",
+        token: token, // Also return token in response for admin panel
         user: {
           _id: existingUser._id,
           name: existingUser.name,
           email: existingUser.email,
           profilePic: existingUser.profilePicture,
           hasProfilePicture: hasProfilePicture,
+          isAdmin: existingUser.isAdmin || false,
+          adminRole: existingUser.adminRole || null, // Include admin role
         },
       });
   } catch (err) {
     console.error("Login Error:", err);
-    res.status(500).json({ message: "Login Error", error: err.message });
+    console.error("Login Error Stack:", err.stack);
+    res.status(500).json({ 
+      message: "Login Error", 
+      error: err.message,
+      stack: process.env.NODE_ENV === "development" ? err.stack : undefined
+    });
   }
 };
 
 export const getAllUsers = async (req, res) => {
   try {
-    const allUsers = await User.find().select("-password");
-    res.status(200).json(allUsers);
+    const allUsers = await User.find().select("-password").lean();
+    
+    // Add hasProfilePicture to each user
+    const usersWithPictureCheck = allUsers.map(user => {
+      const hasProfilePicture = checkProfilePictureExists(user.profilePicture);
+      return { ...user, hasProfilePicture };
+    });
+    
+    res.status(200).json(usersWithPictureCheck);
   } catch (err) {
     res.status(500).json({ message: "Error while getting all users: ", err });
   }
@@ -164,7 +329,13 @@ export const searchUsers = async (req, res) => {
     const { q } = req.query;
     if (!q || q.trim().length === 0) return res.json([]);
     const regex = new RegExp(q, 'i');
-    const users = await User.find({ name: regex }).select("-password").limit(20).lean();
+    // Search by both name and email
+    const users = await User.find({ 
+      $or: [
+        { name: regex },
+        { email: regex }
+      ]
+    }).select("-password").limit(20).lean();
     
     // Add hasProfilePicture to each user
     const usersWithPictureCheck = users.map(user => {
@@ -210,6 +381,7 @@ export const getTopCreators = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const userId = req.params.id;
+    const currentUserId = req.user?.id;
     const userExists = await User.findById(userId)
       .select("-password")
       .populate("friends", "name profilePicture city")
@@ -222,6 +394,27 @@ export const getUserById = async (req, res) => {
     const hasProfilePicture = checkProfilePictureExists(userExists.profilePicture);
     userExists.hasProfilePicture = hasProfilePicture;
 
+    // Check privacy settings
+    const isPrivate = userExists.isProfilePrivate || false;
+    const isMe = currentUserId && userExists._id.toString() === currentUserId.toString();
+    
+    // Check if current user is a friend
+    let isFriend = false;
+    if (currentUserId && !isMe) {
+      const userFriends = userExists.friends || [];
+      isFriend = userFriends.some(friend => {
+        const friendId = typeof friend === 'string' ? friend : friend._id?.toString() || friend.toString();
+        return friendId === currentUserId.toString();
+      });
+    }
+
+    // If profile is private and user is not a friend (and not viewing own profile), hide sensitive data
+    if (isPrivate && !isMe && !isFriend) {
+      // Hide friends list and other sensitive info for non-friends
+      userExists.friends = [];
+      // Note: Posts will be filtered in the postController
+    }
+
     res.status(200).json(userExists);
   } catch (err) {
     res.status(500).json({ message: "Error Finding User: ", err });
@@ -232,6 +425,10 @@ export const updateUserById = async (req, res) => {
   try {
     const userId = req.params.id;
     const updates = req.body;
+    const adminId = req.user?._id || req.user?.id;
+
+    // Get user before update for logging
+    const userBeforeUpdate = await User.findById(userId).select("name email role isAdmin adminRole");
 
     if (updates.password) {
       const salt = await bcrypt.genSalt(10);
@@ -244,7 +441,46 @@ export const updateUserById = async (req, res) => {
     }).select("-password");
 
     if (!updatedUser) {
-      res.status(400).json({ message: "User Not found!" });
+      return res.status(400).json({ message: "User Not found!" });
+    }
+
+    // Log security event
+    try {
+      const { createSecurityLog } = await import('../controller/securityLogController.js');
+      const { getClientIP } = await import('../utils/getClientIP.js');
+      const changes = [];
+      if (updates.role && updates.role !== userBeforeUpdate?.role) {
+        changes.push(`role: ${userBeforeUpdate?.role} → ${updates.role}`);
+      }
+      if (updates.isAdmin !== undefined && updates.isAdmin !== userBeforeUpdate?.isAdmin) {
+        changes.push(`admin status: ${userBeforeUpdate?.isAdmin} → ${updates.isAdmin}`);
+      }
+      if (updates.adminRole && updates.adminRole !== userBeforeUpdate?.adminRole) {
+        changes.push(`admin role: ${userBeforeUpdate?.adminRole} → ${updates.adminRole}`);
+      }
+      if (updates.password) {
+        changes.push('password changed');
+      }
+
+      await createSecurityLog({
+        eventType: updates.password ? 'password_change' : 
+                   (updates.role || updates.isAdmin || updates.adminRole) ? 'role_change' : 
+                   'admin_action',
+        adminId: adminId,
+        targetUserId: userId,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'] || 'unknown',
+        description: `Admin updated user ${userBeforeUpdate?.name || userBeforeUpdate?.email}: ${changes.join(', ') || 'profile updated'}`,
+        severity: (updates.password || updates.isAdmin || updates.adminRole) ? 'high' : 'medium',
+        status: 'success',
+        details: {
+          targetUser: userBeforeUpdate?.email,
+          changes: Object.keys(updates).filter(k => k !== 'password'),
+          isPasswordChange: !!updates.password
+        }
+      });
+    } catch (logError) {
+      console.error('Error logging user update:', logError);
     }
 
     res
@@ -264,6 +500,9 @@ export const getMe = async (req, res) => {
     const hasProfilePicture = checkProfilePictureExists(me.profilePicture);
     const userResponse = me.toObject ? me.toObject() : me;
     userResponse.hasProfilePicture = hasProfilePicture;
+    // Ensure isAdmin and adminRole are included
+    userResponse.isAdmin = me.isAdmin || false;
+    userResponse.adminRole = me.adminRole || null;
     
     res.json(userResponse);
   } catch (err) {
@@ -273,8 +512,20 @@ export const getMe = async (req, res) => {
 
 export const updateMe = async (req, res) => {
   try {
+    // Check if profile editing is allowed
+    const profileEditAllowed = await isProfileEditAllowed();
+    if (!profileEditAllowed) {
+      return res.status(403).json({ message: "Profile editing is currently disabled." });
+    }
+
     const updates = req.body;
     if (updates.password) {
+      // Validate password strength
+      const passwordValidation = await validatePassword(updates.password);
+      if (!passwordValidation.valid) {
+        return res.status(400).json({ message: passwordValidation.message });
+      }
+      
       const salt = await bcrypt.genSalt(10);
       updates.password = await bcrypt.hash(updates.password, salt);
     }
@@ -296,6 +547,7 @@ export const updateMe = async (req, res) => {
     if (req.body.name) updates.name = req.body.name;
     if (req.body.city) updates.city = req.body.city;
     if (req.body.bio) updates.bio = req.body.bio;
+    if (req.body.isProfilePrivate !== undefined) updates.isProfilePrivate = req.body.isProfilePrivate === true || req.body.isProfilePrivate === 'true';
     
     const updated = await User.findByIdAndUpdate(req.user.id, updates, {
       new: true,
@@ -316,8 +568,40 @@ export const updateMe = async (req, res) => {
 export const deleteUserById = async (req, res) => {
   try {
     const userId = req.params.id;
+    const adminId = req.user?._id || req.user?.id;
+
+    // Get user info before deletion for logging
+    const userToDelete = await User.findById(userId).select("name email role isAdmin adminRole");
+
+    if (!userToDelete) {
+      return res.status(404).json({ message: "User Not found!" });
+    }
 
     await User.findByIdAndDelete(userId);
+
+    // Log security event (CRITICAL)
+    try {
+      const { createSecurityLog } = await import('../controller/securityLogController.js');
+      const { getClientIP } = await import('../utils/getClientIP.js');
+      await createSecurityLog({
+        eventType: 'admin_action',
+        adminId: adminId,
+        targetUserId: userId,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'] || 'unknown',
+        description: `Admin deleted user: ${userToDelete.name} (${userToDelete.email})${userToDelete.isAdmin ? ' [ADMIN]' : ''}`,
+        severity: 'critical',
+        status: 'success',
+        details: {
+          deletedUser: userToDelete.email,
+          deletedUserName: userToDelete.name,
+          wasAdmin: userToDelete.isAdmin,
+          adminRole: userToDelete.adminRole
+        }
+      });
+    } catch (logError) {
+      console.error('Error logging user deletion:', logError);
+    }
 
     res.status(200).json({ message: "User Deleted Successfully!" });
   } catch (err) {
@@ -394,6 +678,12 @@ export const resendOtp = async (req, res) => {
 // FRIEND REQUEST SYSTEM
 export const sendFriendRequest = async (req, res) => {
   try {
+    // Check if friend requests are enabled
+    const friendRequestsEnabled = await areFriendRequestsEnabled();
+    if (!friendRequestsEnabled) {
+      return res.status(403).json({ message: 'Friend requests are currently disabled.' });
+    }
+
     const userId = req.user.id;
     const { targetUserId } = req.body;
     if (!userId || !targetUserId) return res.status(400).json({ message: 'User IDs required.' });
@@ -554,6 +844,72 @@ export const getUserStats = async (req, res) => {
   } catch (err) {
     console.error('Error fetching user stats:', err);
     res.status(500).json({ message: "Failed to fetch user stats", error: err.message });
+  }
+};
+
+// Get local connections (opposite role users that current user has chatted with)
+// If user is "local", show "tourist" connections
+// If user is "tourist", show "local" connections
+export const getLocalConnections = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Get current user's role
+    const currentUser = await User.findById(userId).select('role').lean();
+    if (!currentUser) {
+      return res.json([]);
+    }
+    
+    // Determine target role: if current user is "local", find "tourist" users, and vice versa
+    const targetRole = currentUser.role === 'local' ? 'tourist' : 'local';
+    
+    // Get all conversations where current user is a participant
+    const conversations = await Conversation.find({
+      participants: userId
+    })
+    .populate({
+      path: 'participants',
+      select: 'name profilePicture city role',
+      model: User
+    })
+    .lean();
+    
+    // Extract unique users with target role that user has chatted with
+    const targetUserIds = new Set();
+    const targetUsersMap = new Map();
+    
+    conversations.forEach(conv => {
+      if (!conv.participants || conv.participants.length !== 2) return; // Only one-on-one conversations
+      
+      const otherParticipant = conv.participants.find(p => {
+        const pId = p._id ? p._id.toString() : String(p._id || p);
+        return pId !== String(userId);
+      });
+      
+      // Check if other participant has the target role (opposite of current user's role)
+      if (otherParticipant) {
+        const participantRole = otherParticipant.role ? String(otherParticipant.role).toLowerCase() : '';
+        if (participantRole === targetRole) {
+          const otherId = otherParticipant._id ? otherParticipant._id.toString() : String(otherParticipant._id || otherParticipant);
+          if (!targetUserIds.has(otherId)) {
+            targetUserIds.add(otherId);
+            targetUsersMap.set(otherId, otherParticipant);
+          }
+        }
+      }
+    });
+    
+    // Convert map to array and add hasProfilePicture
+    const targetUsers = Array.from(targetUsersMap.values()).map(user => {
+      const userObj = user;
+      userObj.hasProfilePicture = checkProfilePictureExists(userObj.profilePicture);
+      return userObj;
+    });
+    
+    res.json(targetUsers);
+  } catch (err) {
+    console.error('Error fetching local connections:', err);
+    res.status(500).json({ message: "Failed to fetch local connections", error: err.message });
   }
 };
 

@@ -1,8 +1,21 @@
-import { useState } from 'react';
-import { FiSend, FiBell, FiFlag, FiCalendar, FiClock, FiX, FiPlus } from 'react-icons/fi';
+import { useState, useEffect } from 'react';
+import { FiSend, FiBell, FiFlag, FiCalendar, FiClock, FiX, FiPlus, FiSave, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { SkeletonText, SkeletonActivityFeed } from '../components/SkeletonLoader';
+import { 
+  sendNotificationToAllUsers, 
+  saveNotificationDraft, 
+  getNotificationDrafts, 
+  updateNotificationDraft, 
+  deleteNotificationDraft 
+} from '../api/adminApi';
 import './Notifications.css';
 
 const Notifications = () => {
+  const [loading, setLoading] = useState(true);
+  const [drafts, setDrafts] = useState([]);
+  const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [editingDraftId, setEditingDraftId] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
@@ -10,55 +23,29 @@ const Notifications = () => {
     targetAudience: 'all',
     deliveryMethod: {
       push: false,
-      inApp: false
+      inApp: true
     },
     schedule: ''
   });
 
-  const recentNotifications = [
-    {
-      icon: FiSend,
-      title: 'Platform Maintenance Alert',
-      description: 'Scheduled downtime on May 20th',
-      date: '2024-05-18 10:30 AM',
-      color: '#7c3aed'
-    },
-    {
-      icon: FiSend,
-      title: 'New Feature Rollout: Advanced Analytics',
-      description: 'Introducing new detailed analytics report',
-      date: '2024-05-15 09:00 AM',
-      color: '#7c3aed'
-    },
-    {
-      icon: FiBell,
-      title: 'Community Guidelines Update',
-      description: 'Revised guidelines for content submission',
-      date: '2024-05-25 08:00 AM',
-      color: '#3b82f6'
-    },
-    {
-      icon: FiSend,
-      title: 'User Engagement Survey Reminder',
-      description: 'Last chance to participate in our annual survey',
-      date: '2024-05-10 03:45 PM',
-      color: '#7c3aed'
-    },
-    {
-      icon: FiFlag,
-      title: 'Security Advisory: Password Policy',
-      description: 'Enhanced password security requirements',
-      date: '2024-05-08 11:00 AM',
-      color: '#ef4444'
-    },
-    {
-      icon: FiSend,
-      title: 'Welcome to Admin Hub V2.0!',
-      description: 'Explore the new, redesigned Admin Hub',
-      date: '2024-05-01 07:00 AM',
-      color: '#7c3aed'
+  useEffect(() => {
+    fetchDrafts();
+    const timer = setTimeout(() => {
+      setLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const fetchDrafts = async () => {
+    try {
+      const response = await getNotificationDrafts();
+      if (response.data) {
+        setDrafts(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching drafts:', error);
     }
-  ];
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -79,38 +66,154 @@ const Notifications = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSaveDraft = async (e) => {
     e.preventDefault();
-    console.log('Notification submitted:', formData);
-    // Here you would typically send the data to your backend
-    // Reset form and close modal
+    if (!formData.message.trim()) {
+      alert('Please enter a notification message');
+      return;
+    }
+
+    try {
+      setSaving(true);
+      let response;
+      
+      if (editingDraftId) {
+        response = await updateNotificationDraft(editingDraftId, formData);
+      } else {
+        response = await saveNotificationDraft(formData);
+      }
+
+      if (response.data.success) {
+        alert(editingDraftId ? 'Draft updated successfully!' : 'Draft saved successfully!');
+        await fetchDrafts();
+        resetForm();
+        setIsModalOpen(false);
+      }
+    } catch (error) {
+      console.error('Error saving draft:', error);
+      alert(error.response?.data?.message || 'Failed to save draft. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSendNotification = async (e) => {
+    e.preventDefault();
+    if (!formData.message.trim()) {
+      alert('Please enter a notification message');
+      return;
+    }
+
+    try {
+      setSending(true);
+      const response = await sendNotificationToAllUsers({
+        title: formData.title,
+        message: formData.message,
+        draftId: editingDraftId || null
+      });
+
+      if (response.data.success) {
+        alert(`Successfully sent notification to ${response.data.notificationsCount} users!`);
+        await fetchDrafts();
+        resetForm();
+        setIsModalOpen(false);
+      }
+    } catch (error) {
+      console.error('Error sending notification:', error);
+      alert(error.response?.data?.message || 'Failed to send notification. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleEditDraft = (draft) => {
+    setEditingDraftId(draft._id);
+    setFormData({
+      title: draft.title || '',
+      message: draft.message || '',
+      targetAudience: draft.targetAudience || 'all',
+      deliveryMethod: draft.deliveryMethod || { push: false, inApp: true },
+      schedule: draft.schedule ? new Date(draft.schedule).toISOString().slice(0, 16) : ''
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteDraft = async (draftId) => {
+    if (!window.confirm('Are you sure you want to delete this draft?')) {
+      return;
+    }
+
+    try {
+      const response = await deleteNotificationDraft(draftId);
+      if (response.data.success) {
+        alert('Draft deleted successfully!');
+        await fetchDrafts();
+      }
+    } catch (error) {
+      console.error('Error deleting draft:', error);
+      alert(error.response?.data?.message || 'Failed to delete draft. Please try again.');
+    }
+  };
+
+  const resetForm = () => {
     setFormData({
       title: '',
       message: '',
       targetAudience: 'all',
       deliveryMethod: {
         push: false,
-        inApp: false
+        inApp: true
       },
       schedule: ''
     });
-    setIsModalOpen(false);
+    setEditingDraftId(null);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
-    // Reset form when closing
-    setFormData({
-      title: '',
-      message: '',
-      targetAudience: 'all',
-      deliveryMethod: {
-        push: false,
-        inApp: false
-      },
-      schedule: ''
+    resetForm();
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
     });
   };
+
+  if (loading) {
+    return (
+      <div className="notifications-container">
+        <div className="notifications-layout">
+          <div className="compose-section">
+            <div className="section-header">
+              <div className="skeleton-text" style={{ width: '250px', height: '28px', marginBottom: '8px' }}></div>
+              <div className="skeleton-text" style={{ width: '400px', height: '16px' }}></div>
+            </div>
+            <div style={{ marginTop: '24px' }}>
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} style={{ marginBottom: '20px' }}>
+                  <div className="skeleton-text" style={{ width: '150px', height: '16px', marginBottom: '8px' }}></div>
+                  <div className="skeleton-text" style={{ width: '100%', height: '40px' }}></div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="recent-notifications-sidebar">
+            <div className="section-header">
+              <div className="skeleton-text" style={{ width: '200px', height: '28px', marginBottom: '8px' }}></div>
+              <div className="skeleton-text" style={{ width: '300px', height: '16px' }}></div>
+            </div>
+            <SkeletonActivityFeed items={6} />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="notifications-container">
@@ -124,7 +227,7 @@ const Notifications = () => {
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="notification-form">
+          <form className="notification-form" onSubmit={(e) => e.preventDefault()}>
             {/* Notification Title */}
             <div className="form-group">
               <label className="form-label">Notification Title</label>
@@ -250,42 +353,98 @@ const Notifications = () => {
               </div>
             </div>
 
-            {/* Submit Button */}
-            <button type="submit" className="submit-btn">
-              <FiSend className="submit-btn-icon" />
-              Send Notification
-            </button>
+            {/* Action Buttons */}
+            <div className="form-actions">
+              <button 
+                type="button" 
+                onClick={handleSaveDraft}
+                className="save-draft-btn"
+                disabled={saving || sending || !formData.message.trim()}
+              >
+                <FiSave className="submit-btn-icon" />
+                {saving ? 'Saving...' : editingDraftId ? 'Update Draft' : 'Save Draft'}
+              </button>
+              <button 
+                type="button" 
+                onClick={handleSendNotification}
+                className="submit-btn"
+                disabled={saving || sending || !formData.message.trim()}
+              >
+                <FiSend className="submit-btn-icon" />
+                {sending ? 'Sending...' : 'Send Notification'}
+              </button>
+            </div>
           </form>
         </div>
 
-        {/* Recent Notifications Sidebar */}
+        {/* Saved Drafts Sidebar */}
         <div className="recent-notifications-sidebar">
           <div className="section-header">
-            <h1 className="section-title">Recent Notifications</h1>
+            <h1 className="section-title">Saved Drafts</h1>
             <p className="section-subtitle">
-              Overview of your latest broadcasts and their status.
+              Your saved notification drafts. Click to edit or send.
             </p>
           </div>
 
           <div className="notifications-list">
-            {recentNotifications.map((notification, index) => {
-              const Icon = notification.icon;
-              return (
-                <div key={index} className="notification-card">
-                  <div className="notification-icon-wrapper" style={{ backgroundColor: `${notification.color}15` }}>
-                    <Icon className="notification-icon" style={{ color: notification.color }} />
-                  </div>
-                  <div className="notification-content">
-                    <h3 className="notification-card-title">{notification.title}</h3>
-                    <p className="notification-card-description">{notification.description}</p>
-                    <div className="notification-card-date">
-                      <FiClock className="date-icon" />
-                      <span>{notification.date}</span>
+            {drafts.length === 0 ? (
+              <div className="no-drafts-message">
+                <FiBell className="no-drafts-icon" />
+                <p>No saved drafts yet. Create and save your first notification draft!</p>
+              </div>
+            ) : (
+              drafts.map((draft) => {
+                const Icon = draft.status === 'sent' ? FiSend : FiBell;
+                const color = draft.status === 'sent' ? '#10b981' : '#7c3aed';
+                return (
+                  <div key={draft._id} className="notification-card draft-card">
+                    <div className="notification-icon-wrapper" style={{ backgroundColor: `${color}15` }}>
+                      <Icon className="notification-icon" style={{ color: color }} />
+                    </div>
+                    <div className="notification-content">
+                      <div className="draft-header">
+                        <h3 className="notification-card-title">
+                          {draft.title || 'Untitled Notification'}
+                          {draft.status === 'sent' && (
+                            <span className="sent-badge">Sent</span>
+                          )}
+                        </h3>
+                        {draft.status === 'draft' && (
+                          <div className="draft-actions">
+                            <button 
+                              className="draft-action-btn"
+                              onClick={() => handleEditDraft(draft)}
+                              title="Edit"
+                            >
+                              <FiEdit2 />
+                            </button>
+                            <button 
+                              className="draft-action-btn delete-btn"
+                              onClick={() => handleDeleteDraft(draft._id)}
+                              title="Delete"
+                            >
+                              <FiTrash2 />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <p className="notification-card-description">
+                        {draft.message.length > 100 
+                          ? draft.message.substring(0, 100) + '...' 
+                          : draft.message}
+                      </p>
+                      <div className="notification-card-date">
+                        <FiClock className="date-icon" />
+                        <span>{formatDate(draft.createdAt)}</span>
+                        {draft.status === 'sent' && draft.sentToCount > 0 && (
+                          <span className="sent-count">• Sent to {draft.sentToCount} users</span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })
+            )}
           </div>
         </div>
       </div>

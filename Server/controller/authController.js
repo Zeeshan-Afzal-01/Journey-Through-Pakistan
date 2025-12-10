@@ -79,26 +79,20 @@ export const authCallback = async (req, res) => {
     }
 
     const appToken = jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
-      expiresIn: "2h",
+      expiresIn: "1d",
     });
 
-    const hasAddress = Boolean(
-      user.shippingAddress &&
-        (user.shippingAddress.address ||
-          user.shippingAddress.postalCode ||
-          user.shippingAddress.country)
-    );
-
-    const nextPath = hasAddress ? "/home" : "/complete-profile";
-    // Set HttpOnly cookie for SPA consumption
-    res.cookie("token", appToken, {
+    // Set HttpOnly cookie for SPA consumption (use appToken to match user app)
+    res.cookie("appToken", appToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      maxAge: 2 * 60 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      path: "/",
     });
 
-    const redirectUrl = `${process.env.FRONTEND_URL}${nextPath}`;
+    // Redirect to dashboard after successful OAuth login
+    const redirectUrl = `${process.env.FRONTEND_URL || "http://localhost:5173"}/dashboard`;
     return res.redirect(redirectUrl);
   } catch (err) {
     console.error(

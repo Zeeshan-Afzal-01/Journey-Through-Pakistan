@@ -2,6 +2,7 @@ import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { getMaxFileUploadSize } from '../utils/settingsHelper.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,8 +22,31 @@ const storage = multer.diskStorage({
   }
 });
 
-const uploadPost = multer({ storage });
+const defaultMaxSize = 10 * 1024 * 1024; // 10MB default
 
-export default uploadPost;
+const createUploadPost = async () => {
+  try {
+    const maxSize = await getMaxFileUploadSize();
+    return multer({ 
+      storage,
+      limits: { fileSize: maxSize || defaultMaxSize },
+      fileFilter: (req, file, cb) => {
+        if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+          cb(null, true);
+        } else {
+          cb(new Error('Only image and video files are allowed'), false);
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Error getting max file upload size:', error);
+    return multer({ 
+      storage,
+      limits: { fileSize: defaultMaxSize }
+    });
+  }
+};
+
+export default createUploadPost;
 
 

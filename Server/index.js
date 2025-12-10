@@ -11,6 +11,7 @@ import notificationRouter from './routers/notificationRouter.js';
 import statusRouter from './routers/statusRouter.js';
 import groupRouter from './routers/groupRouter.js';
 import messageRouter from './routers/messageRouter.js';
+import adminRouter from './routers/adminRouter.js';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
@@ -24,10 +25,13 @@ import axios from 'axios';
 const app = express();
 const httpServer = createServer(app);
 
+// Trust proxy to get real IP addresses (important for IP tracking)
+app.set('trust proxy', true);
+
 // Socket.IO setup with CORS
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:5173",
+    origin: ["http://localhost:5173", "http://localhost:5174"],
     credentials: true,
     methods: ["GET", "POST"]
   }
@@ -37,9 +41,16 @@ app.use(express.json());
 app.use(cookieParser());
 
 app.use(cors({
-  origin: "http://localhost:5173",
+  origin: ["http://localhost:5173", "http://localhost:5174"],
   credentials: true
 }));
+
+// Attach io to app for use in routes
+app.set('io', io);
+
+// Maintenance mode check (before routes, but after admin routes are excluded in middleware)
+import { checkMaintenanceMode } from './middleware/maintenanceMode.js';
+app.use(checkMaintenanceMode);
 
 app.use('/uploads', express.static('uploads'));
 app.use('/users', userRouter);
@@ -49,6 +60,7 @@ app.use('/notifications', notificationRouter);
 app.use('/statuses', statusRouter);
 app.use('/groups', groupRouter);
 app.use('/messages', messageRouter);
+app.use('/admin', adminRouter);
 
 app.get('/', (req, res) => {
   res.send("Hello WORLD!");
@@ -258,3 +270,6 @@ httpServer.listen(process.env.PORT, () => {
   console.log(`Server is on! Port ${process.env.PORT}`);
   console.log(`Socket.IO server is running`);
 });
+
+// Export io for use in other modules
+export { io };
