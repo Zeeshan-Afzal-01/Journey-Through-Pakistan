@@ -107,6 +107,8 @@ const Settings = () => {
     
     // API Keys
     googleApiKey: '',
+    googleVisionApiKey: '',
+    googlePlacesApiKey: '',
     
     // System
     maintenanceMode: false,
@@ -1138,7 +1140,47 @@ const APISection = ({ settings, onChange, showPasswords, togglePassword }) => (
             {showPasswords.googleApiKey ? <FiEyeOff /> : <FiEye />}
           </button>
         </div>
-        <small className="settings-hint">Google Maps/Places API key. Leave masked to keep current value.</small>
+        <small className="settings-hint">General Google API key (used as fallback). Leave masked to keep current value.</small>
+      </div>
+      <div className="settings-form-group">
+        <label>Google Vision API Key</label>
+        <div className="settings-input-with-icon">
+          <input
+            type={showPasswords.googleVisionApiKey ? "text" : "password"}
+            value={settings.googleVisionApiKey || ''}
+            onChange={(e) => onChange('googleVisionApiKey', e.target.value)}
+            className="settings-input"
+            placeholder="Enter Vision API key or leave masked to keep current"
+          />
+          <button
+            type="button"
+            className="settings-password-toggle"
+            onClick={() => togglePassword('googleVisionApiKey')}
+          >
+            {showPasswords.googleVisionApiKey ? <FiEyeOff /> : <FiEye />}
+          </button>
+        </div>
+        <small className="settings-hint">Google Cloud Vision API key for landmark detection. Optional - falls back to general key if not set.</small>
+      </div>
+      <div className="settings-form-group">
+        <label>Google Places API Key</label>
+        <div className="settings-input-with-icon">
+          <input
+            type={showPasswords.googlePlacesApiKey ? "text" : "password"}
+            value={settings.googlePlacesApiKey || ''}
+            onChange={(e) => onChange('googlePlacesApiKey', e.target.value)}
+            className="settings-input"
+            placeholder="Enter Places API key or leave masked to keep current"
+          />
+          <button
+            type="button"
+            className="settings-password-toggle"
+            onClick={() => togglePassword('googlePlacesApiKey')}
+          >
+            {showPasswords.googlePlacesApiKey ? <FiEyeOff /> : <FiEye />}
+          </button>
+        </div>
+        <small className="settings-hint">Google Places API key for location verification. Optional - falls back to general key if not set.</small>
       </div>
     </div>
 

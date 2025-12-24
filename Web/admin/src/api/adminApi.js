@@ -238,3 +238,16 @@ export const getTourismMetrics = () => {
   return api.get('/admin/analytics/tourism-metrics');
 };
 
+// Moderation/Reports
+export const getReports = (params = {}) => {
+  return api.get('/admin/moderation/reports', { params });
+};
+
+export const getReportStats = () => {
+  return api.get('/admin/moderation/reports/stats');
+};
+
+export const handleReport = (reportId, action, resolutionNote = '') => {
+  return api.post(`/admin/moderation/reports/${reportId}/handle`, { action, resolutionNote });
+};
+

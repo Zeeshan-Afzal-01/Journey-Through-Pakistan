@@ -12,6 +12,7 @@ import statusRouter from './routers/statusRouter.js';
 import groupRouter from './routers/groupRouter.js';
 import messageRouter from './routers/messageRouter.js';
 import adminRouter from './routers/adminRouter.js';
+import landmarkRouter from './routers/landmarkRouter.js';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import jwt from 'jsonwebtoken';
@@ -61,6 +62,7 @@ app.use('/statuses', statusRouter);
 app.use('/groups', groupRouter);
 app.use('/messages', messageRouter);
 app.use('/admin', adminRouter);
+app.use('/landmarks', landmarkRouter);
 
 app.get('/', (req, res) => {
   res.send("Hello WORLD!");

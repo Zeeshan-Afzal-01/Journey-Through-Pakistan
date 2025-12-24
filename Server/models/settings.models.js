@@ -44,6 +44,8 @@ const settingsSchema = new mongoose.Schema(
     
     // API Keys
     googleApiKey: { type: String, default: "" }, // Will be masked
+    googleVisionApiKey: { type: String, default: "" }, // Will be masked (optional, falls back to googleApiKey)
+    googlePlacesApiKey: { type: String, default: "" }, // Will be masked (optional, falls back to googleApiKey)
     
     // System Settings
     maintenanceMode: { type: Boolean, default: false },

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { FiHeart, FiMessageSquare, FiShare2, FiBookmark, FiMoreHorizontal, FiEdit2, FiTrash2, FiUsers } from "react-icons/fi";
+import { FiHeart, FiMessageSquare, FiShare2, FiBookmark, FiMoreHorizontal, FiEdit2, FiTrash2, FiUsers, FiFlag } from "react-icons/fi";
 import "../assests/css/post-detail.css";
-import { getPost, addComment, toggleLike, sharePost, updatePost, deletePost } from "../api/postsApi.jsx";
+import { getPost, addComment, toggleLike, sharePost, updatePost, deletePost, reportPost, reportComment } from "../api/postsApi.jsx";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { PostDetailSkeleton, CommentSkeleton } from '../components/SkeletonLoader.jsx';
@@ -17,6 +17,8 @@ export default function PostDetail() {
   const [error, setError] = useState("");
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportCommentId, setReportCommentId] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: '', type: 'success' });
   const { user: currentUser } = useAuth();
 
@@ -99,47 +101,61 @@ export default function PostDetail() {
           ) : post ? (
           <div className="card shadow-sm">
             <div className="card-body">
-              <div className="text-center mb-3 position-relative">
+                <div className="text-center mb-3 position-relative">
                 <div className="position-absolute top-0 end-0">
-                  {isAuthor && (
-                    <div className="position-relative">
-                      <button 
-                        className="btn btn-link p-0 text-muted"
-                        onClick={() => setShowOptionsMenu(!showOptionsMenu)}
-                        style={{ fontSize: '20px', lineHeight: '1' }}
-                      >
-                        <FiMoreHorizontal />
-                      </button>
-                      {showOptionsMenu && (
-                        <>
-                          <div 
-                            className="position-fixed top-0 start-0 w-100 h-100" 
-                            style={{ zIndex: 1040 }}
-                            onClick={() => setShowOptionsMenu(false)}
-                          ></div>
-                          <div 
-                            className="position-absolute bg-white border rounded shadow-sm"
-                            style={{ right: 0, top: '100%', zIndex: 1050, minWidth: '160px', marginTop: '4px' }}
-                          >
+                  <div className="position-relative">
+                    <button 
+                      className="btn btn-link p-0 text-muted"
+                      onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                      style={{ fontSize: '20px', lineHeight: '1' }}
+                    >
+                      <FiMoreHorizontal />
+                    </button>
+                    {showOptionsMenu && (
+                      <>
+                        <div 
+                          className="position-fixed top-0 start-0 w-100 h-100" 
+                          style={{ zIndex: 1040 }}
+                          onClick={() => setShowOptionsMenu(false)}
+                        ></div>
+                        <div 
+                          className="position-absolute bg-white border rounded shadow-sm"
+                          style={{ right: 0, top: '100%', zIndex: 1050, minWidth: '160px', marginTop: '4px' }}
+                        >
+                          {isAuthor ? (
+                            <>
+                              <button 
+                                className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2"
+                                onClick={handleEdit}
+                                style={{ fontSize: '14px' }}
+                              >
+                                <FiEdit2 size={16} /> Edit Post
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-danger"
+                                onClick={handleDelete}
+                                style={{ fontSize: '14px' }}
+                              >
+                                <FiTrash2 size={16} /> Delete Post
+                              </button>
+                            </>
+                          ) : (
                             <button 
-                              className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2"
-                              onClick={handleEdit}
+                              className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-warning"
+                              onClick={() => {
+                                setShowReportModal(true);
+                                setReportCommentId(null);
+                                setShowOptionsMenu(false);
+                              }}
                               style={{ fontSize: '14px' }}
                             >
-                              <FiEdit2 size={16} /> Edit Post
+                              <FiFlag size={16} /> Report Post
                             </button>
-                            <button 
-                              className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-danger"
-                              onClick={handleDelete}
-                              style={{ fontSize: '14px' }}
-                            >
-                              <FiTrash2 size={16} /> Delete Post
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
                 <img
                   className="rounded-circle me-2 post-avatar"
@@ -217,7 +233,7 @@ export default function PostDetail() {
               </div>
               <div className="d-flex flex-column gap-3">
                 {post?.comments?.map((c) => (
-                  <div className="d-flex gap-2 border-bottom pb-3" key={c._id}>
+                  <div className="d-flex gap-2 border-bottom pb-3 position-relative" key={c._id}>
                    <img
   className="rounded-circle me-2 post-avatar"
   src={
@@ -229,7 +245,7 @@ export default function PostDetail() {
   onClick={() => navigate(`/profile?userId=${c.author?._id || c.author}`)}
   style={{ cursor: 'pointer' }}
 />
- <div>
+ <div className="flex-grow-1">
                       <div 
                         className="fw-semibold small"
                         onClick={() => navigate(`/profile?userId=${c.author?._id || c.author}`)}
@@ -239,6 +255,16 @@ export default function PostDetail() {
                       </div>
                       <div className="text-muted xsmall mb-1">{new Date(c.createdAt).toLocaleString()}</div>
                       <div className="text-muted">{c.text}</div>
+                      <button
+                        className="btn btn-link btn-sm p-0 text-warning mt-1"
+                        style={{ fontSize: '12px' }}
+                        onClick={() => {
+                          setReportCommentId(c._id);
+                          setShowReportModal(true);
+                        }}
+                      >
+                        <FiFlag size={12} className="me-1" /> Report
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -338,6 +364,126 @@ export default function PostDetail() {
           ></button>
         </div>
       )}
+
+      {showReportModal && (
+        <ReportModal
+          contentType={reportCommentId ? 'comment' : 'post'}
+          postId={post?._id}
+          commentId={reportCommentId}
+          onClose={() => {
+            setShowReportModal(false);
+            setReportCommentId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ReportModal({ contentType, postId, commentId, onClose }) {
+  const [reason, setReason] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const reasons = [
+    'Spam',
+    'Hate speech',
+    'Harassment',
+    'Inappropriate content',
+    'False information',
+    'Violence',
+    'Other'
+  ];
+
+  const handleSubmit = async () => {
+    if (!reason) {
+      setError('Please select a reason');
+      return;
+    }
+
+    setError('');
+    setSubmitting(true);
+
+    try {
+      if (contentType === 'post') {
+        await reportPost(postId, reason, description);
+      } else {
+        await reportComment(postId, commentId, reason, description);
+      }
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to submit report');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+      <div className="modal-dialog">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">
+              <FiFlag className="me-2" />
+              Report {contentType === 'post' ? 'Post' : 'Comment'}
+            </h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body">
+            {success ? (
+              <div className="alert alert-success">
+                Report submitted successfully. Thank you for helping keep our community safe.
+              </div>
+            ) : (
+              <>
+                <p className="text-muted">Please select a reason for reporting this {contentType}.</p>
+                <div className="mb-3">
+                  <label className="form-label">Reason for Report <span className="text-danger">*</span></label>
+                  <select
+                    className="form-select"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  >
+                    <option value="">Select a reason...</option>
+                    {reasons.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Additional Details (Optional)</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Provide any additional information..."
+                  />
+                </div>
+                {error && <div className="alert alert-danger">{error}</div>}
+              </>
+            )}
+          </div>
+          {!success && (
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-warning"
+                onClick={handleSubmit}
+                disabled={submitting || !reason}
+              >
+                {submitting ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

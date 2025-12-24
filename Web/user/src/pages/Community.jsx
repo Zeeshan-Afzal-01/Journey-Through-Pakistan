@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser, FiMoreHorizontal, FiEdit2, FiTrash2, FiLock, FiGlobe, FiTag } from "react-icons/fi";
+import { FiImage, FiMapPin, FiSmile, FiTrendingUp, FiUsers, FiSearch, FiHeart, FiMessageSquare, FiBookmark, FiHome, FiBell, FiPlus, FiUser, FiMoreHorizontal, FiEdit2, FiTrash2, FiLock, FiGlobe, FiTag, FiFlag } from "react-icons/fi";
 import { MdPhotoLibrary, MdLocationOn, MdEmojiEmotions, MdPhoto, MdClose, MdMyLocation, MdPersonAdd } from "react-icons/md";
 import "../assests/css/community.css";
 import "../assests/css/stories.css";
-import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost, toggleSavePost } from "../api/postsApi.jsx";
+import { listPosts, createPost, toggleLike, addComment, updatePost, deletePost, toggleSavePost, reportPost, reportComment } from "../api/postsApi.jsx";
 import { getTopCreators, getFriends } from "../api/authApi.jsx";
 import { sendFriendRequest as apiSendFriendRequest } from "../api/authApi.jsx";
 import { useNavigate } from "react-router-dom";
@@ -1826,6 +1826,8 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
   const [commentError, setCommentError] = useState("");
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportCommentId, setReportCommentId] = useState(null);
   const isGif = post.imageUrl && /\.gif($|\?)/i.test(post.imageUrl);
   const hasLiked = post.likes && currentUser && post.likes.some(u => (u._id || u) === (currentUser._id || currentUser.id));
   const isAuthor = currentUser && (post.author?._id === currentUser._id || post.author?._id === currentUser.id);
@@ -1926,45 +1928,64 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
               )}
             </div>
           </div>
-          {isAuthor && (
-            <div className="position-relative">
-              <button 
-                className="btn btn-link p-0 text-muted"
-                onClick={() => setShowOptionsMenu(!showOptionsMenu)}
-                style={{ fontSize: '20px', lineHeight: '1' }}
-              >
-                <FiMoreHorizontal />
-              </button>
-              {showOptionsMenu && (
-                <>
-                  <div 
-                    className="position-fixed top-0 start-0 w-100 h-100" 
-                    style={{ zIndex: 1040 }}
-                    onClick={() => setShowOptionsMenu(false)}
-                  ></div>
-                  <div 
-                    className="position-absolute bg-white border rounded shadow-sm"
-                    style={{ right: 0, top: '100%', zIndex: 1050, minWidth: '160px', marginTop: '4px' }}
-                  >
-                    <button 
-                      className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2"
-                      onClick={handleEdit}
-                      style={{ fontSize: '14px' }}
+          <div className="position-relative">
+            {(isAuthor || !isAuthor) && (
+              <>
+                <button 
+                  className="btn btn-link p-0 text-muted"
+                  onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                  style={{ fontSize: '20px', lineHeight: '1' }}
+                >
+                  <FiMoreHorizontal />
+                </button>
+                {showOptionsMenu && (
+                  <>
+                    <div 
+                      className="position-fixed top-0 start-0 w-100 h-100" 
+                      style={{ zIndex: 1040 }}
+                      onClick={() => setShowOptionsMenu(false)}
+                    ></div>
+                    <div 
+                      className="position-absolute bg-white border rounded shadow-sm"
+                      style={{ right: 0, top: '100%', zIndex: 1050, minWidth: '160px', marginTop: '4px' }}
                     >
-                      <FiEdit2 size={16} /> Edit Post
-                    </button>
-                    <button 
-                      className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-danger"
-                      onClick={handleDelete}
-                      style={{ fontSize: '14px' }}
-                    >
-                      <FiTrash2 size={16} /> Delete Post
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+                      {isAuthor && (
+                        <>
+                          <button 
+                            className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2"
+                            onClick={handleEdit}
+                            style={{ fontSize: '14px' }}
+                          >
+                            <FiEdit2 size={16} /> Edit Post
+                          </button>
+                          <button 
+                            className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-danger"
+                            onClick={handleDelete}
+                            style={{ fontSize: '14px' }}
+                          >
+                            <FiTrash2 size={16} /> Delete Post
+                          </button>
+                        </>
+                      )}
+                      {!isAuthor && (
+                        <button 
+                          className="btn btn-sm btn-link text-start w-100 text-decoration-none d-flex align-items-center gap-2 text-warning"
+                          onClick={() => {
+                            setShowReportModal(true);
+                            setReportCommentId(null);
+                            setShowOptionsMenu(false);
+                          }}
+                          style={{ fontSize: '14px' }}
+                        >
+                          <FiFlag size={16} /> Report Post
+                        </button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
         </div>
         <p className="mb-2">{renderWithHashtags(post.text, onHashtagClick)}</p>
         {post.imageUrl && (
@@ -2009,6 +2030,11 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
                 onReplyText={e => setReplyText(e.target.value)}
                 onSubmitReply={cid => handleLocalAddComment(post, replyText, () => { setReplyText(''); setReplyingId(null); }, cid)}
                 submitting={submitting}
+                postId={post._id}
+                onReportComment={(commentId) => {
+                  setReportCommentId(commentId);
+                  setShowReportModal(true);
+                }}
               />
               {/* Top-level comment box */}
               <div className="d-flex align-items-center gap-2">
@@ -2036,6 +2062,125 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
           }}
         />
       )}
+      {showReportModal && (
+        <ReportModal
+          contentType={reportCommentId ? 'comment' : 'post'}
+          postId={post._id}
+          commentId={reportCommentId}
+          onClose={() => {
+            setShowReportModal(false);
+            setReportCommentId(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function ReportModal({ contentType, postId, commentId, onClose }) {
+  const [reason, setReason] = useState('');
+  const [description, setDescription] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
+
+  const reasons = [
+    'Spam',
+    'Hate speech',
+    'Harassment',
+    'Inappropriate content',
+    'False information',
+    'Violence',
+    'Other'
+  ];
+
+  const handleSubmit = async () => {
+    if (!reason) {
+      setError('Please select a reason');
+      return;
+    }
+
+    setError('');
+    setSubmitting(true);
+
+    try {
+      if (contentType === 'post') {
+        await reportPost(postId, reason, description);
+      } else {
+        await reportComment(postId, commentId, reason, description);
+      }
+      setSuccess(true);
+      setTimeout(() => {
+        onClose();
+      }, 1500);
+    } catch (err) {
+      setError(err?.response?.data?.message || 'Failed to submit report');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)", zIndex: 1060 }}>
+      <div className="modal-dialog">
+        <div className="modal-content">
+          <div className="modal-header">
+            <h5 className="modal-title">
+              <FiFlag className="me-2" />
+              Report {contentType === 'post' ? 'Post' : 'Comment'}
+            </h5>
+            <button type="button" className="btn-close" onClick={onClose}></button>
+          </div>
+          <div className="modal-body">
+            {success ? (
+              <div className="alert alert-success">
+                Report submitted successfully. Thank you for helping keep our community safe.
+              </div>
+            ) : (
+              <>
+                <p className="text-muted">Please select a reason for reporting this {contentType}.</p>
+                <div className="mb-3">
+                  <label className="form-label">Reason for Report <span className="text-danger">*</span></label>
+                  <select
+                    className="form-select"
+                    value={reason}
+                    onChange={(e) => setReason(e.target.value)}
+                  >
+                    <option value="">Select a reason...</option>
+                    {reasons.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="mb-3">
+                  <label className="form-label">Additional Details (Optional)</label>
+                  <textarea
+                    className="form-control"
+                    rows="3"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="Provide any additional information..."
+                  />
+                </div>
+                {error && <div className="alert alert-danger">{error}</div>}
+              </>
+            )}
+          </div>
+          {!success && (
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button
+                type="button"
+                className="btn btn-warning"
+                onClick={handleSubmit}
+                disabled={submitting || !reason}
+              >
+                {submitting ? 'Submitting...' : 'Submit Report'}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -2271,7 +2416,7 @@ function GroupPreviewModal({ group, user, onClose, onJoinRequest, isJoining }) {
 }
 
 // COMMENT RENDERING HELPERS
-function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, onSubmitReply, submitting }) {
+function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, onSubmitReply, submitting, postId, onReportComment }) {
   const navigate = useNavigate();
   if (!comments) return null;
   return (
@@ -2290,7 +2435,7 @@ function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, 
               style={{ width: 28, height: 28, objectFit: 'cover', cursor: 'pointer' }}
               onClick={() => navigate(`/profile?userId=${c.author?._id || c.author}`)}
             />
-            <div className="bg-light rounded px-2 py-1 flex-grow-1">
+            <div className="bg-light rounded px-2 py-1 flex-grow-1 position-relative">
               <div className="small">
                 <span 
                   className="fw-semibold" 
@@ -2302,7 +2447,19 @@ function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, 
                 <span className="text-muted">{new Date(c.createdAt).toLocaleString?.() || ''}</span>
               </div>
               <div className="small">{c.text}</div>
-              <button className="btn btn-link btn-sm p-0" style={{fontSize:'0.9em'}} onClick={()=>onReply(c._id)}>Reply</button>
+              <div className="d-flex gap-2">
+                <button className="btn btn-link btn-sm p-0" style={{fontSize:'0.9em'}} onClick={()=>onReply(c._id)}>Reply</button>
+                {onReportComment && (
+                  <button 
+                    className="btn btn-link btn-sm p-0 text-warning" 
+                    style={{fontSize:'0.9em'}} 
+                    onClick={() => onReportComment(c._id)}
+                    title="Report comment"
+                  >
+                    <FiFlag size={12} /> Report
+                  </button>
+                )}
+              </div>
               {replyingId === c._id && (
                 <div className="d-flex align-items-center gap-2 mt-1">
                   <input className="form-control form-control-sm" style={{maxWidth:180}} placeholder="Write a reply..." value={replyText} onChange={onReplyText} onKeyDown={(e)=>{ if(e.key==='Enter')onSubmitReply(c._id); }} />
@@ -2312,7 +2469,7 @@ function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, 
             </div>
           </div>
           {c.replies && c.replies.length > 0 && (
-            <CommentThread comments={c.replies} onReply={onReply} replyingId={replyingId} replyText={replyText} onReplyText={onReplyText} onSubmitReply={onSubmitReply} submitting={submitting}/>
+            <CommentThread comments={c.replies} onReply={onReply} replyingId={replyingId} replyText={replyText} onReplyText={onReplyText} onSubmitReply={onSubmitReply} submitting={submitting} postId={postId} onReportComment={onReportComment}/>
           )}
         </div>
       ))}

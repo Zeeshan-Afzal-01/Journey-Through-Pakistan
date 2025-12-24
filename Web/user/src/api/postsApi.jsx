@@ -25,5 +25,7 @@ export const deletePost = (postId) => api.delete(`/posts/${postId}`);
 export const trendingHashtags = () => api.get('/posts/trending-hashtags');
 export const toggleSavePost = (postId) => api.post(`/posts/${postId}/save`);
 export const getSavedPosts = () => api.get('/posts/saved');
+export const reportPost = (postId, reason, description) => api.post(`/posts/${postId}/report`, { reason, description });
+export const reportComment = (postId, commentId, reason, description) => api.post(`/posts/${postId}/comment/${commentId}/report`, { reason, description });
 
 

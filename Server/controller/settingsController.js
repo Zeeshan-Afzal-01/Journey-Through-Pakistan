@@ -65,6 +65,8 @@ export const getSettings = async (req, res) => {
       smtpPassword: settings.smtpPassword ? maskValue(settings.smtpPassword) : '',
       auth0ClientSecret: settings.auth0ClientSecret ? maskValue(settings.auth0ClientSecret) : '',
       googleApiKey: settings.googleApiKey ? maskValue(settings.googleApiKey) : '',
+      googleVisionApiKey: settings.googleVisionApiKey ? maskValue(settings.googleVisionApiKey) : '',
+      googlePlacesApiKey: settings.googlePlacesApiKey ? maskValue(settings.googlePlacesApiKey) : '',
     };
     
     res.json(safeSettings);
@@ -90,7 +92,7 @@ export const updateSettings = async (req, res) => {
     }
 
     // Handle sensitive fields - if masked value is sent, don't update
-    const sensitiveFields = ['secretKey', 'mongodbUri', 'smtpPassword', 'auth0ClientSecret', 'googleApiKey'];
+    const sensitiveFields = ['secretKey', 'mongodbUri', 'smtpPassword', 'auth0ClientSecret', 'googleApiKey', 'googleVisionApiKey', 'googlePlacesApiKey'];
     sensitiveFields.forEach(field => {
       if (updates[field] && updates[field].includes('••••')) {
         delete updates[field]; // Don't update if masked
@@ -117,7 +119,7 @@ export const updateSettings = async (req, res) => {
       const { createSecurityLog } = await import('./securityLogController.js');
       const { getClientIP } = await import('../utils/getClientIP.js');
       const changedFields = Object.keys(updates).filter(key => 
-        !['secretKey', 'mongodbUri', 'smtpPassword', 'auth0ClientSecret', 'googleApiKey'].includes(key) ||
+        !['secretKey', 'mongodbUri', 'smtpPassword', 'auth0ClientSecret', 'googleApiKey', 'googleVisionApiKey', 'googlePlacesApiKey'].includes(key) ||
         !String(updates[key]).includes('••••')
       );
       
@@ -146,6 +148,8 @@ export const updateSettings = async (req, res) => {
       smtpPassword: settings.smtpPassword ? maskValue(settings.smtpPassword) : '',
       auth0ClientSecret: settings.auth0ClientSecret ? maskValue(settings.auth0ClientSecret) : '',
       googleApiKey: settings.googleApiKey ? maskValue(settings.googleApiKey) : '',
+      googleVisionApiKey: settings.googleVisionApiKey ? maskValue(settings.googleVisionApiKey) : '',
+      googlePlacesApiKey: settings.googlePlacesApiKey ? maskValue(settings.googlePlacesApiKey) : '',
     };
 
     res.json({
@@ -200,6 +204,8 @@ const createSettingsFromEnv = async () => {
     auth0ClientSecret: envVars.AUTH0_CLIENT_SECRET || "",
     auth0CallbackUrl: envVars.AUTH0_CALLBACK_URL || "",
     googleApiKey: envVars.GOOGLE_API_KEY || "",
+    googleVisionApiKey: envVars.GOOGLE_VISION_API_KEY || "",
+    googlePlacesApiKey: envVars.GOOGLE_PLACES_API_KEY || "",
   };
 
   return await Settings.create(settingsData);
@@ -309,6 +315,8 @@ const updateEnvFile = async (settings) => {
   updateEnvVar('AUTH0_CLIENT_SECRET', settings.auth0ClientSecret);
   updateEnvVar('AUTH0_CALLBACK_URL', settings.auth0CallbackUrl);
   updateEnvVar('GOOGLE_API_KEY', settings.googleApiKey);
+  updateEnvVar('GOOGLE_VISION_API_KEY', settings.googleVisionApiKey);
+  updateEnvVar('GOOGLE_PLACES_API_KEY', settings.googlePlacesApiKey);
   updateEnvVar('SECRET_KEY', settings.secretKey);
   updateEnvVar('MONGODB_URI', settings.mongodbUri);
   updateEnvVar('URL', settings.mongodbUri); // Also update URL if used

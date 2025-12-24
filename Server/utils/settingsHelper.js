@@ -180,3 +180,15 @@ export const getGoogleAPIKey = async () => {
   return settings.googleApiKey || process.env.GOOGLE_API_KEY || '';
 };
 
+// Get Google Vision API Key
+export const getGoogleVisionAPIKey = async () => {
+  const settings = await getSettings();
+  return settings.googleVisionApiKey || process.env.GOOGLE_VISION_API_KEY || await getGoogleAPIKey();
+};
+
+// Get Google Places API Key
+export const getGooglePlacesAPIKey = async () => {
+  const settings = await getSettings();
+  return settings.googlePlacesApiKey || process.env.GOOGLE_PLACES_API_KEY || await getGoogleAPIKey();
+};
+

@@ -35,6 +35,11 @@ import {
   exportSecurityLogs,
   getSecurityLogStats
 } from '../controller/securityLogController.js';
+import {
+  getReports,
+  getReportStats,
+  handleReport
+} from '../controller/reportController.js';
 import User from '../models/user.models.js';
 import multer from 'multer';
 import path from 'path';
@@ -238,6 +243,11 @@ router.get('/security-logs/stats', requireSupervisorOrAbove, getSecurityLogStats
 router.get('/security-logs/export', requireSupervisorOrAbove, exportSecurityLogs); // Must be before /:id
 router.get('/security-logs/:id', requireSupervisorOrAbove, getSecurityLog);
 router.delete('/security-logs', requireSupervisorOrAbove, deleteSecurityLogs);
+
+// Moderation/Reports routes (Supervisor and above)
+router.get('/moderation/reports', requireSupervisorOrAbove, getReports);
+router.get('/moderation/reports/stats', requireSupervisorOrAbove, getReportStats);
+router.post('/moderation/reports/:reportId/handle', requireSupervisorOrAbove, handleReport);
 
 export default router;
 
