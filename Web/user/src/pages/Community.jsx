@@ -15,6 +15,7 @@ import { trendingHashtags as apiTrendingHashtags } from '../api/postsApi.jsx';
 import { PostCardSkeleton, UserCardSkeleton, HashtagSkeleton, StatusBarSkeleton, GroupCardSkeleton } from '../components/SkeletonLoader.jsx';
 import { listGroups, createGroup, joinGroup, leaveGroup, getGroupPosts } from '../api/groupsApi.jsx';
 import "../assests/css/skeleton.css";
+import { getProfilePictureUrl, getImageUrl } from '../utils/imageUtils.js';
 
 function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal, onGroups = [] }) {
   const [showModal, setShowModal] = useState(false);
@@ -26,11 +27,7 @@ function CreatePostBar({ onPost, currentUser, onStatusCreated, onOpenStatusModal
           <div className="d-flex align-items-center gap-3">
             <img
               className="rounded-circle"
-              src={
-                currentUser?.hasProfilePicture && currentUser?.profilePicture 
-                  ? `http://localhost:3000/${currentUser.profilePicture}` 
-                  : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-              }
+              src={getProfilePictureUrl(currentUser?.profilePicture, currentUser?.hasProfilePicture)}
               alt={currentUser?.name || "me"}
               style={{ width: "40px", height: "40px" }}
             />
@@ -93,7 +90,7 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
   const [taggedUsers, setTaggedUsers] = useState([]);
   const [postToGroup, setPostToGroup] = useState(selectedGroup || "");
 
-  const MAX_LEN = 500;
+  const MAX_LEN = 1000;
   const canPost = (text.trim().length > 0 || file || imageUrl || selectedGif) && !submitting;
 
   // Sample GIFs (in real app, fetch from GIPHY API)
@@ -205,24 +202,50 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
   };
 
   return (
-    <div className="modal show d-block" style={{ backgroundColor: "rgba(0,0,0,0.5)" }}>
-      <div className="modal-dialog modal-lg">
-        <div className="modal-content" style={{ borderRadius: "8px" }}>
-          <div className="modal-header border-0 pb-0" style={{ padding: "16px 20px 0" }}>
+    <div 
+      className="modal show d-block" 
+      style={{ 
+        backgroundColor: "rgba(0,0,0,0.5)", 
+        position: "fixed", 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0, 
+        zIndex: 1050, 
+        display: "flex", 
+        alignItems: "center", 
+        justifyContent: "center",
+        padding: "1rem",
+        overflow: "auto"
+      }}
+    >
+      <div 
+        className="modal-dialog modal-lg modal-dialog-centered" 
+        style={{ 
+          margin: "auto", 
+          maxWidth: "80%", 
+          width: "80%",
+          maxHeight: "80vh",
+          height: "80vh",
+          display: "flex",
+          alignItems: "stretch"
+        }}
+      >
+        <div className="modal-content" style={{ borderRadius: "8px", margin: 0, width: "100%", display: "flex", flexDirection: "column", maxHeight: "100%" }}>
+          <div className="modal-header border-0 pb-0" style={{ padding: "16px 20px 0", flexShrink: 0 }}>
             <h5 className="modal-title fw-bold text-center w-100" style={{ fontSize: "20px" }}>Create post</h5>
             <button type="button" className="btn-close position-absolute" style={{ right: "20px", top: "16px" }} onClick={onClose}></button>
           </div>
-          <div className="modal-body" style={{ padding: "16px 20px" }}>
+          <div className="modal-body" style={{ padding: "16px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <div className="d-flex align-items-center gap-3 mb-3">
               <img
                 className="rounded-circle"
-                src={
-                  currentUser?.hasProfilePicture && currentUser?.profilePicture 
-                    ? `http://localhost:3000/${currentUser.profilePicture}` 
-                    : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-                }
+                src={getProfilePictureUrl(currentUser?.profilePicture, currentUser?.hasProfilePicture)}
                 alt={currentUser?.name || "me"}
-                style={{ width: "40px", height: "40px" }}
+                style={{ width: "40px", height: "40px", objectFit: "cover" }}
+                onError={(e) => {
+                  e.target.src = "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+                }}
               />
               <div className="flex-grow-1">
                 <div className="fw-semibold" style={{ fontSize: "15px" }}>{currentUser?.name || "Unknown"}</div>
@@ -261,11 +284,63 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                   const v = e.target.value;
                   if (v.length <= MAX_LEN) setText(v);
                 }}
+                onPaste={(e) => {
+                  // Allow paste operation - get pasted text
+                  e.preventDefault();
+                  const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+                  
+                  // Calculate new text length after paste
+                  const textarea = e.target;
+                  const start = textarea.selectionStart;
+                  const end = textarea.selectionEnd;
+                  const currentText = text;
+                  const newText = currentText.substring(0, start) + pastedText + currentText.substring(end);
+                  
+                  // Only update if within character limit
+                  if (newText.length <= MAX_LEN) {
+                    setText(newText);
+                    // Set cursor position after pasted text
+                    setTimeout(() => {
+                      textarea.selectionStart = textarea.selectionEnd = start + pastedText.length;
+                    }, 0);
+                  } else {
+                    // If paste would exceed limit, paste only what fits
+                    const remainingChars = MAX_LEN - currentText.length + (end - start);
+                    const truncatedPaste = pastedText.substring(0, remainingChars);
+                    if (truncatedPaste.length > 0) {
+                      const finalText = currentText.substring(0, start) + truncatedPaste + currentText.substring(end);
+                      setText(finalText);
+                      setTimeout(() => {
+                        textarea.selectionStart = textarea.selectionEnd = start + truncatedPaste.length;
+                      }, 0);
+                    }
+                  }
+                }}
+                onKeyDown={(e) => {
+                  // Allow Ctrl+C, Ctrl+V, Ctrl+A, Ctrl+X, Ctrl+Z (undo), Ctrl+Y (redo)
+                  if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'v' || e.key === 'a' || e.key === 'x' || e.key === 'z' || e.key === 'y')) {
+                    // Allow default behavior (copy/paste/select all/cut/undo/redo)
+                    return;
+                  }
+                }}
                 rows={4}
                 className="form-control border-0"
-                style={{ fontSize: "24px", resize: "none", padding: "0", paddingRight: "50px" }}
+                style={{ 
+                  fontSize: "24px", 
+                  resize: "vertical", 
+                  padding: "0", 
+                  paddingRight: "50px",
+                  minHeight: "120px",
+                  maxHeight: "400px",
+                  overflowY: "auto"
+                }}
                 placeholder={`What's on your mind, ${currentUser?.name?.split(' ')[0] || ''}?`}
               />
+              {text.length > 0 && (
+                <div className="text-end mt-2" style={{ fontSize: "12px", color: text.length >= MAX_LEN ? "#dc3545" : "#6c757d" }}>
+                  {text.length}/{MAX_LEN} characters
+                </div>
+              )}
               <button 
                 type="button" 
                 className="btn btn-light border-0 position-absolute" 
@@ -283,9 +358,51 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
 
             {(file || imageUrl || selectedGif) && (
               <div className="mb-3">
-                <div className="position-relative d-inline-block rounded overflow-hidden" style={{ maxWidth: "100%" }}>
-                  <img src={file ? previewUrl : (selectedGif || imageUrl)} alt="preview" className="img-fluid rounded" />
-                  <button type="button" className="btn btn-sm btn-danger position-absolute" style={{ top: 6, right: 6 }} onClick={() => { setFile(null); setImageUrl(""); setSelectedGif(""); }}>Remove</button>
+                <div className="position-relative rounded overflow-hidden" style={{ maxWidth: "100%", width: "100%", backgroundColor: "#f0f0f0", minHeight: "200px", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <img 
+                    src={file ? previewUrl : (selectedGif || imageUrl)} 
+                    alt="preview" 
+                    className="img-fluid rounded" 
+                    style={{ 
+                      width: "100%", 
+                      maxHeight: "400px", 
+                      objectFit: "contain",
+                      display: "block"
+                    }}
+                    onError={(e) => {
+                      console.error('Image failed to load:', e.target.src);
+                      e.target.style.display = 'none';
+                      // Show error message
+                      const container = e.target.parentElement;
+                      if (container && !container.querySelector('.image-error')) {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'image-error text-danger text-center p-3';
+                        errorDiv.textContent = 'Failed to load image';
+                        container.appendChild(errorDiv);
+                      }
+                    }}
+                    onLoad={(e) => {
+                      // Remove error message if image loads successfully
+                      const container = e.target.parentElement;
+                      const errorDiv = container?.querySelector('.image-error');
+                      if (errorDiv) {
+                        errorDiv.remove();
+                      }
+                    }}
+                  />
+                  <button 
+                    type="button" 
+                    className="btn btn-sm btn-danger position-absolute" 
+                    style={{ top: 6, right: 6, zIndex: 10 }} 
+                    onClick={() => { 
+                      setFile(null); 
+                      setImageUrl(""); 
+                      setSelectedGif(""); 
+                      setPreviewUrl("");
+                    }}
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             )}
@@ -305,7 +422,7 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                       style={{ fontSize: '0.85rem' }}
                     >
                       <img 
-                        src={userPic ? (userPic.startsWith('http') ? userPic : `http://localhost:3000/${userPic}`) : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"} 
+                        src={getProfilePictureUrl(userPic, !!userPic)} 
                         alt={userName}
                         className="rounded-circle"
                         style={{ width: '20px', height: '20px', objectFit: 'cover' }}
@@ -390,7 +507,7 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
               </div>
             )}
           </div>
-          <div className="modal-footer border-0" style={{ padding: "16px 20px" }}>
+          <div className="modal-footer border-0" style={{ padding: "16px 20px", flexShrink: 0 }}>
             <button disabled={!canPost} onClick={handleSubmit} className="btn btn-primary w-100 rounded-pill py-2" style={{ fontSize: "15px", fontWeight: "600" }}>
               {submitting ? "Posting..." : "Post"}
             </button>
@@ -533,9 +650,7 @@ function CreatePostModal({ onPost, currentUser, onClose, groups = [], selectedGr
                         >
                           <img 
                             src={
-                              friend.hasProfilePicture && friend.profilePicture 
-                                ? `http://localhost:3000/${friend.profilePicture}` 
-                                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                              getProfilePictureUrl(friend.profilePicture, friend.hasProfilePicture)
                             } 
                             alt={friend.name}
                             className="rounded-circle me-3"
@@ -702,9 +817,7 @@ function CreateStatusModal({ currentUser, onCreated, onClose }) {
                 className="rounded-circle" 
                 style={{ width:36, height:36, objectFit:'cover', border:'2px solid rgba(255,255,255,.6)' }} 
                 src={
-                  currentUser?.hasProfilePicture && currentUser?.profilePicture 
-                    ? `http://localhost:3000/${currentUser.profilePicture}` 
-                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                  getProfilePictureUrl(currentUser?.profilePicture, currentUser?.hasProfilePicture)
                 } 
                 alt={currentUser?.name||'me'} 
               />
@@ -760,9 +873,7 @@ function StatusBar({ currentUser, groups, onClickGroup, onAddRequested }) {
             <div className="story-avatar-wrapper add-story">
               <img 
                 src={
-                  currentUser?.hasProfilePicture && currentUser?.profilePicture 
-                    ? `http://localhost:3000/${currentUser.profilePicture}` 
-                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                  getProfilePictureUrl(currentUser?.profilePicture, currentUser?.hasProfilePicture)
                 } 
                 alt={currentUser?.name || 'You'} 
               />
@@ -783,9 +894,7 @@ function StatusBar({ currentUser, groups, onClickGroup, onAddRequested }) {
                 <div className={`story-avatar-wrapper ${!hasUnviewed ? 'viewed' : ''}`}>
                   <img 
                     src={
-                      g.user?.hasProfilePicture && g.user?.profilePicture 
-                        ? `http://localhost:3000/${g.user.profilePicture}` 
-                        : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                      getProfilePictureUrl(g.user?.profilePicture, g.user?.hasProfilePicture)
                     } 
                     alt={g.user?.name || 'User'} 
                   />
@@ -1085,9 +1194,7 @@ function StatusViewerModal({ groups, groupIndex, onClose, onChangeGroup, current
                   <img 
                     className="story-header-avatar" 
                     src={
-                      group?.user?.hasProfilePicture && group?.user?.profilePicture 
-                        ? `http://localhost:3000/${group.user.profilePicture}` 
-                        : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                      getProfilePictureUrl(group?.user?.profilePicture, group?.user?.hasProfilePicture)
                     } 
                     alt={group?.user?.name || 'User'} 
                   />
@@ -1287,9 +1394,7 @@ function MessagesModal({ messages, onClose }) {
                 <img 
                   className="viewer-avatar" 
                   src={
-                    msg.author?.hasProfilePicture && msg.author?.profilePicture 
-                      ? `http://localhost:3000/${msg.author.profilePicture}` 
-                      : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                    getProfilePictureUrl(msg.author?.profilePicture, msg.author?.hasProfilePicture)
                   } 
                   alt={msg.author?.name || 'User'}
                   onClick={() => navigate(`/profile?userId=${msg.author?._id || msg.author}`)}
@@ -1332,9 +1437,7 @@ function ViewersModal({ viewers, onClose }) {
                 <img 
                   className="viewer-avatar" 
                   src={
-                    v.hasProfilePicture && v.profilePicture 
-                      ? `http://localhost:3000/${v.profilePicture}` 
-                      : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                    getProfilePictureUrl(v.profilePicture, v.hasProfilePicture)
                   } 
                   alt={v.name} 
                 />
@@ -1451,11 +1554,7 @@ function Composer({ onPost, currentUser }) {
         <div className="d-flex gap-3">
           <img 
             className="rounded-circle flex-shrink-0 comm-avatar" 
-            src={
-              currentUser?.hasProfilePicture && currentUser?.profilePicture 
-                ? `http://localhost:3000/${currentUser.profilePicture}` 
-                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-            } 
+            src={getProfilePictureUrl(currentUser?.profilePicture, currentUser?.hasProfilePicture)} 
             alt={currentUser?.name || "me"} 
           />
           <div className="flex-grow-1">
@@ -1671,9 +1770,7 @@ function Composer({ onPost, currentUser }) {
                         >
                           <img 
                             src={
-                              friend.hasProfilePicture && friend.profilePicture 
-                                ? `http://localhost:3000/${friend.profilePicture}` 
-                                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                              getProfilePictureUrl(friend.profilePicture, friend.hasProfilePicture)
                             } 
                             alt={friend.name}
                             className="rounded-circle"
@@ -1900,9 +1997,7 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
           <img 
             className="rounded-circle comm-avatar" 
             src={
-              post.author?.hasProfilePicture && post.author?.profilePicture 
-                ? `http://localhost:3000/${post.author.profilePicture}` 
-                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+              getProfilePictureUrl(post.author?.profilePicture, post.author?.hasProfilePicture)
             } 
             alt={post.author?.name || "User"}
             onClick={() => navigate(`/profile?userId=${post.author?._id || post.author}`)}
@@ -1993,7 +2088,7 @@ function PostCard({ post, onToggleLike, onAddComment, onHashtagClick, onPostUpda
               <Link to={`/community/post/${post._id}`}>
               <img 
                 style={{ width: '100%', height: 'auto', display: 'block' }} 
-                src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} 
+                src={getImageUrl(post.imageUrl)} 
                 alt="post" 
               />
               </Link>
@@ -2223,7 +2318,7 @@ function EditPostModal({ post, onClose, onUpdate }) {
             {post.imageUrl && (
               <div className="mb-3">
                 <img 
-                  src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} 
+                  src={getImageUrl(post.imageUrl)} 
                   alt="post" 
                   className="img-fluid rounded"
                 />
@@ -2296,7 +2391,7 @@ function GroupPreviewModal({ group, user, onClose, onJoinRequest, isJoining }) {
               style={{
                 height: '200px',
                 backgroundImage: group.coverImage 
-                  ? `url(http://localhost:3000/${group.coverImage})` 
+                  ? `url(${getImageUrl(group.coverImage)})` 
                   : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
@@ -2310,7 +2405,7 @@ function GroupPreviewModal({ group, user, onClose, onJoinRequest, isJoining }) {
                   >
                     {group.groupPhoto ? (
                       <img 
-                        src={`http://localhost:3000/${group.groupPhoto}`} 
+                        src={getImageUrl(group.groupPhoto)} 
                         alt={group.name}
                         className="rounded"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -2427,9 +2522,7 @@ function CommentThread({ comments, onReply, replyingId, replyText, onReplyText, 
             <img 
               className="rounded-circle" 
               src={
-                c.author?.hasProfilePicture && c.author?.profilePicture 
-                  ? `http://localhost:3000/${c.author.profilePicture}` 
-                  : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                getProfilePictureUrl(c.author?.profilePicture, c.author?.hasProfilePicture)
               } 
               alt={c.author?.name || 'User'} 
               style={{ width: 28, height: 28, objectFit: 'cover', cursor: 'pointer' }}
@@ -2533,9 +2626,7 @@ function NotificationsCenter({ notifications, onClose, navigate, setNotification
                         }
                       }}
                     src={
-                      n.actor?.hasProfilePicture && n.actor?.profilePicture 
-                        ? `http://localhost:3000/${n.actor.profilePicture}` 
-                        : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                      getProfilePictureUrl(n.actor?.profilePicture, n.actor?.hasProfilePicture)
                     } 
                   />
                   <div className="small flex-grow-1">
@@ -2862,9 +2953,7 @@ export default function Community() {
                         style={{cursor:'pointer'}} 
                         className="rounded-circle comm-avatar" 
                         src={
-                          tc.user?.hasProfilePicture && tc.user?.profilePicture 
-                            ? `http://localhost:3000/${tc.user.profilePicture}` 
-                            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                          getProfilePictureUrl(tc.user?.profilePicture, tc.user?.hasProfilePicture)
                         } 
                         alt={tc.user?.name || 'User'} 
                       />
@@ -3234,7 +3323,7 @@ export default function Community() {
                       }}
                       src={
                         n.actor?.hasProfilePicture && n.actor?.profilePicture 
-                          ? `http://localhost:3000/${n.actor.profilePicture}` 
+                          ? getProfilePictureUrl(n.actor.profilePicture, n.actor.hasProfilePicture) 
                           : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
                       } 
                     />

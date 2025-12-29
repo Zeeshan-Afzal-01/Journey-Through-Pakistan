@@ -19,6 +19,7 @@ import {
 } from "../api/authApi.jsx";
 import { ProfileSkeleton, PostCardSkeleton } from '../components/SkeletonLoader.jsx';
 import "../assests/css/skeleton.css";
+import { getProfilePictureUrl, getImageUrl } from '../utils/imageUtils.js';
 
 // PostCard component (reused from Community.jsx structure)
 function PostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostDelete, currentUser, onPostSave }) {
@@ -123,11 +124,7 @@ function PostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostDelete
         <div className="d-flex align-items-center gap-2 mb-2 position-relative">
           <img 
             className="rounded-circle" 
-            src={
-              post.author?.hasProfilePicture && post.author?.profilePicture 
-                ? `http://localhost:3000/${post.author.profilePicture}` 
-                : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-            } 
+            src={getProfilePictureUrl(post.author?.profilePicture, post.author?.hasProfilePicture)} 
             alt={post.author?.name || "User"}
             style={{ width: '40px', height: '40px', objectFit: 'cover' }}
           />
@@ -180,7 +177,7 @@ function PostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostDelete
             <Link to={`/community/post/${post._id}`}>
               <img 
                 style={{ width: '100%', height: 'auto', maxHeight: '500px', objectFit: 'cover' }} 
-                src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} 
+                src={getImageUrl(post.imageUrl)} 
                 alt="post" 
               />
             </Link>
@@ -236,11 +233,7 @@ function PostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostDelete
                 <div key={c._id} className="d-flex gap-2">
                   <img 
                     className="rounded-circle"
-                    src={
-                      c.author?.hasProfilePicture && c.author?.profilePicture 
-                        ? `http://localhost:3000/${c.author.profilePicture}` 
-                        : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-                    }
+                    src={getProfilePictureUrl(c.author?.profilePicture, c.author?.hasProfilePicture)}
                     alt={c.author?.name || "User"}
                     style={{ width: '32px', height: '32px', objectFit: 'cover' }}
                   />
@@ -459,10 +452,8 @@ export default function Profile() {
   }, [otherUser, user, isMe, isFriend, canViewContent]);
 
   // No need to force 'about' tab - let users see all tabs but show private message when needed
-  const profilePicture = (viewingUser?.hasProfilePicture && viewingUser?.profilePicture) 
-    ? `http://localhost:3000/${viewingUser.profilePicture}` 
-    : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
-  const coverPhoto = viewingUser?.coverPhoto ? `http://localhost:3000/${viewingUser.coverPhoto}` : "https://placehold.co/1200x400/1877f2/ffffff?text=Cover+Photo";
+  const profilePicture = getProfilePictureUrl(viewingUser?.profilePicture, viewingUser?.hasProfilePicture);
+  const coverPhoto = viewingUser?.coverPhoto ? getImageUrl(viewingUser.coverPhoto) : "https://placehold.co/1200x400/1877f2/ffffff?text=Cover+Photo";
 
   const handleChangePicture = async (e) => {
     const file = e.target.files?.[0];
@@ -537,7 +528,7 @@ export default function Profile() {
       .filter(post => post.imageUrl)
       .map(post => ({
         id: post._id,
-        url: post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`,
+        url: getImageUrl(post.imageUrl),
         text: post.text,
         createdAt: post.createdAt
       }));
@@ -880,7 +871,7 @@ export default function Profile() {
                     {isFriend && (
                       <>
                         <Link 
-                          to={`/chats?user=${otherUser._id}`} 
+                          to={`/chats?user=${otherUser._id?.toString() || otherUser._id}`} 
                           className="btn btn-primary rounded-pill d-flex align-items-center gap-2"
                         >
                           <FiMessageCircle /> Message
@@ -1462,9 +1453,10 @@ export default function Profile() {
                       {userFriends.map((friend) => {
                         const friendId = typeof friend === 'string' ? friend : friend._id;
                         const friendName = typeof friend === 'object' ? friend.name : 'Friend';
-                        const friendPic = (typeof friend === 'object' && friend.hasProfilePicture && friend.profilePicture)
-                          ? `http://localhost:3000/${friend.profilePicture}` 
-                          : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png";
+                        const friendPic = getProfilePictureUrl(
+                          typeof friend === 'object' ? friend.profilePicture : null,
+                          typeof friend === 'object' ? friend.hasProfilePicture : false
+                        );
                         return (
                           <div key={friendId} className="col-6 col-md-4">
                             <Link 

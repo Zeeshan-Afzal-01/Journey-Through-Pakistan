@@ -21,8 +21,8 @@ const conversationSchema = new mongoose.Schema(
   }
 );
 
-// Create unique index for participants pair to prevent duplicate conversations
-conversationSchema.index({ participants: 1 }, { unique: true });
+// Index participants for faster lookups (not unique; pair uniqueness handled in code)
+conversationSchema.index({ participants: 1 });
 
 const Conversation = mongoose.model("Conversation", conversationSchema);
 

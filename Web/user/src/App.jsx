@@ -12,6 +12,7 @@ import Sidebar from "./components/Sidebar";
 import Landmark from "./pages/Landmark";
 import Profile from "./pages/Profile";
 import LandmarkResult from "./pages/LandmarkResult";
+import LandmarkView from "./pages/LandmarkView";
 import Community from "./pages/Community";
 import PostDetail from "./pages/PostDetail";
 import Chats from "./pages/Chats";
@@ -20,6 +21,10 @@ import Search from "./pages/Search";
 import GroupDetail from "./pages/GroupDetail";
 import SavedPosts from "./pages/SavedPosts";
 import Settings from "./pages/Settings";
+import Recommendations from "./pages/Recommendations";
+import MyPlaces from "./pages/MyPlaces";
+import SuggestPlace from "./pages/SuggestPlace";
+import ChatBot from "./components/ChatBot";
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
@@ -70,6 +75,18 @@ function App() {
 
           <Route path="/" element={<LandingPage />} />
           <Route path="/signup" element={<SignupPage />} />
+          
+          {/* Public landmark view - no authentication required */}
+          <Route
+            path="/landmark/view/:landmarkId"
+            element={
+              <div className="jtp-layout">
+                <main className="jtp-content p-3">
+                  <LandmarkView />
+                </main>
+              </div>
+            }
+          />
 
           <Route path="/verify-otp" element={<OTPVerification />} />
           <Route
@@ -131,7 +148,33 @@ function App() {
                 <div className="jtp-layout">
                   <Sidebar />
                   <main className="jtp-content p-3">
-                    <div className="container-fluid">Recommendations</div>
+                    <Recommendations />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/my-places"
+            element={
+              <ProtectedRoute>
+                <div className="jtp-layout">
+                  <Sidebar />
+                  <main className="jtp-content p-3">
+                    <MyPlaces />
+                  </main>
+                </div>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/suggest-place"
+            element={
+              <ProtectedRoute>
+                <div className="jtp-layout">
+                  <Sidebar />
+                  <main className="jtp-content p-3">
+                    <SuggestPlace />
                   </main>
                 </div>
               </ProtectedRoute>
@@ -248,6 +291,7 @@ function App() {
           {/* Default Route - Redirect to Signup */}
           <Route path="*" element={<LandingPage />} />
         </Routes>
+        <ChatBot />
         <ToastContainer
           position="top-right"
           autoClose={4000}

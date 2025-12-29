@@ -19,6 +19,11 @@ import {
   getPakistanRegions,
   getTourismMetrics
 } from '../controller/adminController.js';
+import {
+  getPendingPlaces,
+  approvePlace,
+  rejectPlace,
+} from '../controller/adminPlaceController.js';
 import { getSettings, updateSettings } from '../controller/settingsController.js';
 import { 
   createBackup, 
@@ -213,6 +218,11 @@ router.get('/analytics/top-places', requirePermission(PERMISSIONS.VIEW_ANALYTICS
 router.get('/analytics/chat-activity', requirePermission(PERMISSIONS.VIEW_ANALYTICS), getChatActivity);
 router.get('/analytics/pakistan-regions', requirePermission(PERMISSIONS.VIEW_ANALYTICS), getPakistanRegions);
 router.get('/analytics/tourism-metrics', requirePermission(PERMISSIONS.VIEW_ANALYTICS), getTourismMetrics);
+
+// Places moderation (Supervisor/CEO via MODERATE_POSTS permission)
+router.get('/places/pending', requirePermission(PERMISSIONS.MODERATE_POSTS), getPendingPlaces);
+router.post('/places/:placeId/approve', requirePermission(PERMISSIONS.MODERATE_POSTS), approvePlace);
+router.post('/places/:placeId/reject', requirePermission(PERMISSIONS.MODERATE_POSTS), rejectPlace);
 
 // Send notification to all users (Supervisor and above)
 router.post('/notifications/send-all', requireSupervisorOrAbove, sendNotificationToAllUsers);

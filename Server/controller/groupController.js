@@ -8,10 +8,16 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper function to check if profile picture file exists
+// Helper function to check if profile picture exists
+// Now supports both Cloudinary URLs and local file paths
 const checkProfilePictureExists = (profilePicturePath) => {
   if (!profilePicturePath) return false;
   try {
+    // If it's a Cloudinary URL (starts with http/https), consider it valid
+    if (profilePicturePath.startsWith('http://') || profilePicturePath.startsWith('https://')) {
+      return true;
+    }
+    // Otherwise, check if local file exists (for backward compatibility)
     const fullPath = path.join(__dirname, "..", profilePicturePath);
     return fs.existsSync(fullPath);
   } catch (error) {
@@ -387,9 +393,16 @@ export const updateGroupCover = async (req, res) => {
       return res.status(403).json({ message: "Only admin can update cover image" });
     }
 
-    if (req.file) {
-      group.coverImage = `uploads/groups/${req.file.filename}`;
-      await group.save();
+    if (req.file && req.file.buffer) {
+      try {
+        const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'jtp/groups', 'image');
+        group.coverImage = uploadResult.url;
+        await group.save();
+      } catch (uploadError) {
+        console.error('Error uploading group cover to Cloudinary:', uploadError);
+        return res.status(500).json({ message: "Error uploading cover image", error: uploadError.message });
+      }
     }
 
     await group.populate("admin", "name profilePicture");
@@ -415,9 +428,16 @@ export const updateGroupPhoto = async (req, res) => {
       return res.status(403).json({ message: "Only admin can update group photo" });
     }
 
-    if (req.file) {
-      group.groupPhoto = `uploads/groups/${req.file.filename}`;
-      await group.save();
+    if (req.file && req.file.buffer) {
+      try {
+        const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'jtp/groups', 'image');
+        group.groupPhoto = uploadResult.url;
+        await group.save();
+      } catch (uploadError) {
+        console.error('Error uploading group photo to Cloudinary:', uploadError);
+        return res.status(500).json({ message: "Error uploading group photo", error: uploadError.message });
+      }
     }
 
     await group.populate("admin", "name profilePicture");

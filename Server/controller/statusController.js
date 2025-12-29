@@ -7,9 +7,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Helper function to check if profile picture file exists
+// Helper function to check if profile picture exists
+// Now supports both Cloudinary URLs and local file paths
 const checkProfilePictureExists = (profilePicturePath) => {
   if (!profilePicturePath) return false;
   try {
+    // If it's a Cloudinary URL (starts with http/https), consider it valid
+    if (profilePicturePath.startsWith('http://') || profilePicturePath.startsWith('https://')) {
+      return true;
+    }
+    // Otherwise, check if local file exists (for backward compatibility)
     const fullPath = path.join(__dirname, "..", profilePicturePath);
     return fs.existsSync(fullPath);
   } catch (error) {
@@ -24,8 +31,17 @@ export const createStatus = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     let mediaUrl = null;
-    if (req.file) {
-      mediaUrl = `uploads/statuses/${req.file.filename}`;
+    if (req.file && req.file.buffer) {
+      try {
+        const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+        const isVideo = req.file.mimetype.startsWith('video/');
+        const resourceType = isVideo ? 'video' : 'image';
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'jtp/statuses', resourceType);
+        mediaUrl = uploadResult.url;
+      } catch (uploadError) {
+        console.error('Error uploading status media to Cloudinary:', uploadError);
+        return res.status(500).json({ message: "Error uploading status media", error: uploadError.message });
+      }
     }
     if (!mediaUrl) return res.status(400).json({ message: "Status media is required" });
 

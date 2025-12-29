@@ -7,9 +7,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Helper function to check if profile picture file exists
+// Helper function to check if profile picture exists
+// Now supports both Cloudinary URLs and local file paths
 const checkProfilePictureExists = (profilePicturePath) => {
   if (!profilePicturePath) return false;
   try {
+    // If it's a Cloudinary URL (starts with http/https), consider it valid
+    if (profilePicturePath.startsWith('http://') || profilePicturePath.startsWith('https://')) {
+      return true;
+    }
+    // Otherwise, check if local file exists (for backward compatibility)
     const fullPath = path.join(__dirname, "..", profilePicturePath);
     return fs.existsSync(fullPath);
   } catch (error) {

@@ -12,6 +12,7 @@ import Notifications from './pages/Notifications';
 import Moderation from './pages/Moderation';
 import Settings from './pages/Settings';
 import SecurityLogs from './pages/SecurityLogs';
+import Profile from './pages/Profile';
 import './styles/index.css';
 import './styles/layout.css';
 
@@ -31,13 +32,13 @@ function App() {
                   <Route index element={<Dashboard />} />
                   <Route path="users" element={<ManageUsers />} />
                   <Route path="admins" element={<ManageAdmins />} />
-                  <Route path="places" element={<Dashboard />} />
                   <Route path="recommendations" element={<ManageRecommendations />} />
                   <Route path="analytics" element={<Analytics />} />
                   <Route path="notifications" element={<Notifications />} />
                   <Route path="moderation" element={<Moderation />} />
                   <Route path="settings" element={<Settings />} />
                   <Route path="security" element={<SecurityLogs />} />
+                  <Route path="profile" element={<Profile />} />
                   <Route path="*" element={<Navigate to="/" />} />
                 </Routes>
               </div>

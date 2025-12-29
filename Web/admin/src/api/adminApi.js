@@ -28,6 +28,14 @@ export const getAdminProfile = () => {
   return api.get('/users/getMe');
 };
 
+export const updateAdminProfile = (data) => {
+  return api.put('/users/me', data, {
+    headers: {
+      'Content-Type': 'multipart/form-data'
+    }
+  });
+};
+
 // Users Management
 export const getAllUsers = (params = {}) => {
   return api.get('/admin/users', { params }).catch(error => {
@@ -103,6 +111,11 @@ export const updateUserAdminRole = (userId, adminRole, isAdmin) => {
 export const getAdminPermissions = () => {
   return api.get('/admin/permissions');
 };
+
+// Places moderation (local suggestions)
+export const getPendingPlaces = () => api.get('/admin/places/pending');
+export const approvePlace = (placeId) => api.post(`/admin/places/${placeId}/approve`);
+export const rejectPlace = (placeId, reason) => api.post(`/admin/places/${placeId}/reject`, { reason });
 
 // Dashboard Statistics
 export const getDashboardStats = () => {

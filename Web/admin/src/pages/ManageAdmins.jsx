@@ -15,6 +15,7 @@ import {
 } from 'react-icons/fi';
 import { getAllAdmins, updateUserAdminRole, getAdminPermissions, getUserById } from '../api/adminApi';
 import { SkeletonPageHeader, SkeletonFilters, SkeletonTable } from '../components/SkeletonLoader';
+import { getProfilePictureUrl } from '../utils/imageUtils';
 import './ManageAdmins.css';
 
 const ManageAdmins = () => {
@@ -469,26 +470,18 @@ const ManageAdmins = () => {
                 <tr key={admin._id}>
                   <td>
                     <div className="avatar-circle">
-                      {admin.profilePicture ? (
-                        <>
-                          <img 
-                            src={`http://localhost:3000/${admin.profilePicture}`} 
-                            alt={admin.name || 'Admin'}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                              const span = e.target.nextElementSibling;
-                              if (span) span.style.display = 'flex';
-                            }}
-                          />
-                          <span style={{ display: 'none' }}>
-                            {getInitials(admin.name)}
-                          </span>
-                        </>
-                      ) : (
-                        <span>
-                          {getInitials(admin.name)}
-                        </span>
-                      )}
+                      <img 
+                        src={getProfilePictureUrl(admin.profilePicture, admin.hasProfilePicture)} 
+                        alt={admin.name || 'Admin'}
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          const span = e.target.nextElementSibling;
+                          if (span) span.style.display = 'flex';
+                        }}
+                      />
+                      <span style={{ display: 'none' }}>
+                        {getInitials(admin.name)}
+                      </span>
                     </div>
                   </td>
                   <td className="name-cell">
@@ -824,24 +817,18 @@ const ManageAdmins = () => {
             </div>
             <div className="user-details-content">
               <div className="user-details-avatar">
-                {adminDetails.profilePicture ? (
-                  <>
-                    <img 
-                      src={`http://localhost:3000/${adminDetails.profilePicture}`} 
-                      alt={adminDetails.name || 'Admin'}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        const span = e.target.nextElementSibling;
-                        if (span) span.style.display = 'flex';
-                      }}
-                    />
-                    <span style={{ display: 'none' }}>
-                      {getInitials(adminDetails.name)}
-                    </span>
-                  </>
-                ) : (
-                  <span>{getInitials(adminDetails.name)}</span>
-                )}
+                <img 
+                  src={getProfilePictureUrl(adminDetails.profilePicture, adminDetails.hasProfilePicture)} 
+                  alt={adminDetails.name || 'Admin'}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    const span = e.target.nextElementSibling;
+                    if (span) span.style.display = 'flex';
+                  }}
+                />
+                <span style={{ display: 'none' }}>
+                  {getInitials(adminDetails.name)}
+                </span>
               </div>
               <div className="user-details-info">
                 <div className="detail-row">

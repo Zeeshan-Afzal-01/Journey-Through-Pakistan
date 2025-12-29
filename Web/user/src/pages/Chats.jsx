@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
-import { FiSearch, FiPlus, FiPhone, FiVideo, FiImage, FiSmile, FiSend, FiMoreVertical, FiCamera, FiMessageSquare } from "react-icons/fi";
+import { FiSearch, FiPlus, FiPhone, FiVideo, FiImage, FiSmile, FiSend, FiMoreVertical, FiCamera, FiMessageSquare, FiX } from "react-icons/fi";
 import { ChatListSkeleton, ChatMessageSkeleton } from "../components/SkeletonLoader";
 import NewChatModal from "../components/NewChatModal";
 import CallModal from "../components/CallModal";
+import MessageContextMenu from "../components/MessageContextMenu";
 import { useSocket } from "../context/SocketContext";
 import { useAuth } from "../context/AuthContext";
 import { getConversations, getMessages, getOrCreateConversation, markMessagesAsRead, getUnreadCount, uploadChatImage } from "../api/messageApi";
@@ -13,6 +14,8 @@ import EmojiPicker from '../components/EmojiPicker';
 import { useNavigate, useLocation } from "react-router-dom";
 import "../assests/css/chats.css";
 import "../assests/css/skeleton.css";
+import "../assests/css/message-context-menu.css";
+import { getProfilePictureUrl, getImageUrl } from '../utils/imageUtils.js';
 
 export default function Chats() {
   const { socket, isConnected, onlineUsers } = useSocket();
@@ -32,9 +35,13 @@ export default function Chats() {
   const [lastSoundTime, setLastSoundTime] = useState({}); // Track last sound time per conversation
   const [unreadCounts, setUnreadCounts] = useState({}); // Track unread counts per conversation
   const [imagePreview, setImagePreview] = useState(null); // For image preview before sending
+  const [pendingImageUrl, setPendingImageUrl] = useState(null); // Cloudinary URL for image to send
   const [showCamera, setShowCamera] = useState(false); // Camera modal state
   const [showEmojiPicker, setShowEmojiPicker] = useState(false); // Emoji picker state
   const [callState, setCallState] = useState(null); // { type: 'voice'|'video', isIncoming: bool, callerId: string, callerName: string, callerAvatar: string, isActive: bool }
+  const [contextMenu, setContextMenu] = useState({ isOpen: false, message: null, position: { x: 0, y: 0 } });
+  const [editingMessage, setEditingMessage] = useState(null); // { id, text }
+  const longPressTimerRef = useRef(null);
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const conversationIdRef = useRef(null);
@@ -163,7 +170,15 @@ export default function Chats() {
         // Chat doesn't exist, create it
         const openChatWithUser = async () => {
           try {
-            const convResponse = await getOrCreateConversation(userId);
+            // Ensure userId is a string
+            const userIdString = userId?.toString() || userId;
+            if (!userIdString) {
+              toast.error('Invalid user ID');
+              navigate('/chats', { replace: true });
+              return;
+            }
+            
+            const convResponse = await getOrCreateConversation(userIdString);
             const conversationId = convResponse.data._id?.toString() || convResponse.data._id;
             
             // Get user info from API to create chat object
@@ -175,9 +190,7 @@ export default function Chats() {
               conversationId: conversationId,
               userId: userId,
               name: userData.name || 'Unknown',
-              avatar: (userData.hasProfilePicture && userData.profilePicture)
-                ? `http://localhost:3000/${userData.profilePicture}` 
-                : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
+              avatar: getProfilePictureUrl(userData.profilePicture, userData.hasProfilePicture),
               snippet: 'No messages yet',
               time: '',
               unread: 0,
@@ -211,6 +224,13 @@ export default function Chats() {
 
     // Listen for new messages
     const handleNewMessage = (newMessage) => {
+      console.log('📨 New message received:', {
+        id: newMessage._id,
+        text: newMessage.text,
+        imageUrl: newMessage.imageUrl?.substring(0, 50) + '...',
+        hasImage: !!newMessage.imageUrl,
+        conversationId: newMessage.conversationId
+      });
       
       // Normalize conversationId for comparison
       const messageConvId = newMessage.conversationId?.toString();
@@ -222,7 +242,7 @@ export default function Chats() {
         const formattedMessage = {
           id: newMessage._id?.toString() || newMessage._id || Date.now(),
           text: newMessage.text || '',
-          imageUrl: newMessage.imageUrl || null,
+          imageUrl: newMessage.imageUrl || null, // Preserve imageUrl
           time: newMessage.createdAt 
             ? moment(newMessage.createdAt).format('h:mm A') 
             : moment().format('h:mm A'),
@@ -234,14 +254,26 @@ export default function Chats() {
           conversationId: messageConvId
         };
         
+        console.log('✅ Formatted message for display:', {
+          id: formattedMessage.id,
+          imageUrl: formattedMessage.imageUrl?.substring(0, 50),
+          hasImage: !!formattedMessage.imageUrl
+        });
+        
         setMessages(prev => {
           // Check if message already exists to avoid duplicates
+          // Also check by imageUrl for image messages
           const exists = prev.some(msg => 
             msg.id === formattedMessage.id || 
             (msg.text === formattedMessage.text && 
-             Math.abs(new Date(msg.createdAt) - new Date(formattedMessage.createdAt)) < 2000)
+             Math.abs(new Date(msg.createdAt) - new Date(formattedMessage.createdAt)) < 2000) ||
+            (msg.imageUrl === formattedMessage.imageUrl && formattedMessage.imageUrl)
           );
-          if (exists) return prev;
+          if (exists) {
+            console.log('⚠️ Duplicate message detected, skipping');
+            return prev;
+          }
+          console.log('✅ Adding new message to state');
           return [...prev, formattedMessage];
         });
         scrollToBottom();
@@ -265,46 +297,23 @@ export default function Chats() {
           return updated;
         });
       } else {
-        // Update chat list with new message (message is for a different conversation)
-        // Don't show notification here - it will be handled by handleNewMessageNotification
+        // Message is for a different conversation
+        // Sound will be handled globally by SocketContext
+        // Update chat list with new message
         updateChatListWithNewMessage(newMessage);
       }
     };
 
-    // Listen for message notifications (play sound and update chat list)
+    // Listen for message notifications (update chat list - sound handled globally)
     const handleNewMessageNotification = (data) => {
-      const messageConvId = data.conversationId?.toString() || data.message?.conversationId?.toString();
+      const message = data.message || data;
+      const messageConvId = data.conversationId?.toString() || message?.conversationId?.toString();
       const currentConvId = currentConversationId?.toString();
       
-      // Don't play sound if user is viewing this conversation
-      if (messageConvId === currentConvId) {
-        updateChatListWithNewMessage(data.message);
-        return;
+      // Update chat list (sound will be handled globally by SocketContext)
+      if (message) {
+        updateChatListWithNewMessage(message);
       }
-      
-      // Play sound notification (prevent spam - only once per 2 seconds per conversation)
-      const now = Date.now();
-      const lastSound = lastSoundTime[messageConvId] || 0;
-      const timeSinceLastSound = now - lastSound;
-      
-      if (timeSinceLastSound > 2000) {
-        // Play sound
-        try {
-          if (notificationSoundRef.current) {
-            notificationSoundRef.current();
-          }
-        } catch (soundError) {
-          console.log('Sound play error:', soundError);
-        }
-        
-        setLastSoundTime(prev => ({
-          ...prev,
-          [messageConvId]: now
-        }));
-      }
-      
-      // Always update chat list (shows unread badge)
-      updateChatListWithNewMessage(data.message);
     };
 
     // Listen for typing indicators
@@ -364,11 +373,86 @@ export default function Chats() {
       ));
     };
 
+    // Handle message edited
+    const handleMessageEdited = (editedMessage) => {
+      const messageConvId = editedMessage.conversationId?.toString();
+      const currentConvId = currentConversationId?.toString();
+      
+      if (messageConvId === currentConvId) {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id?.toString() === editedMessage._id?.toString() || 
+              msg.id === editedMessage._id) {
+            return {
+              ...msg,
+              text: editedMessage.text,
+              edited: true,
+              editedAt: editedMessage.editedAt
+            };
+          }
+          return msg;
+        }));
+      }
+    };
+
+    // Handle message deleted (for everyone)
+    const handleMessageDeleted = (deletedMessage) => {
+      const messageConvId = deletedMessage.conversationId?.toString();
+      const currentConvId = currentConversationId?.toString();
+      
+      if (messageConvId === currentConvId) {
+        setMessages(prev => prev.map(msg => {
+          if (msg.id?.toString() === deletedMessage._id?.toString() || 
+              msg.id === deletedMessage._id) {
+            return {
+              ...msg,
+              deleted: true,
+              deletedAt: deletedMessage.deletedAt,
+              text: 'This message was deleted'
+            };
+          }
+          return msg;
+        }));
+      }
+    };
+
+    // Handle message deleted for me (hide from current user - sender or recipient)
+    const handleMessageDeletedForMe = (deletedMessage) => {
+      const messageConvId = deletedMessage.conversationId?.toString();
+      const currentConvId = currentConversationId?.toString();
+      
+      if (messageConvId === currentConvId) {
+        // Remove message from current user's view (whether they're sender or recipient)
+        setMessages(prev => prev.filter(msg => {
+          const msgId = msg.id?.toString() || msg.id;
+          const deletedId = deletedMessage._id?.toString() || deletedMessage._id;
+          return msgId !== deletedId;
+        }));
+      }
+    };
+
+    // Handle message unsent
+    const handleMessageUnsent = (unsentMessage) => {
+      const messageConvId = unsentMessage.conversationId?.toString();
+      const currentConvId = currentConversationId?.toString();
+      
+      if (messageConvId === currentConvId) {
+        setMessages(prev => prev.filter(msg => {
+          const msgId = msg.id?.toString() || msg.id;
+          const unsentId = unsentMessage._id?.toString() || unsentMessage._id;
+          return msgId !== unsentId;
+        }));
+      }
+    };
+
     socket.on('new-message', handleNewMessage);
     socket.on('new-message-notification', handleNewMessageNotification);
     socket.on('user-typing', handleTyping);
     socket.on('user-online', handleUserOnline);
     socket.on('user-offline', handleUserOffline);
+    socket.on('message-edited', handleMessageEdited);
+    socket.on('message-deleted', handleMessageDeleted);
+    socket.on('message-deleted-for-me', handleMessageDeletedForMe);
+    socket.on('message-unsent', handleMessageUnsent);
 
     return () => {
       socket.off('new-message', handleNewMessage);
@@ -376,8 +460,19 @@ export default function Chats() {
       socket.off('user-typing', handleTyping);
       socket.off('user-online', handleUserOnline);
       socket.off('user-offline', handleUserOffline);
+      socket.off('message-edited', handleMessageEdited);
+      socket.off('message-deleted', handleMessageDeleted);
+      socket.off('message-deleted-for-me', handleMessageDeletedForMe);
+      socket.off('message-unsent', handleMessageUnsent);
     };
   }, [socket, isConnected, currentConversationId]);
+
+  // Notify SocketContext whenever current conversation changes
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent('chat-conversation-changed', {
+      detail: { conversationId: currentConversationId }
+    }));
+  }, [currentConversationId]);
 
   // Join conversation room when conversation is selected
   useEffect(() => {
@@ -389,6 +484,10 @@ export default function Chats() {
         if (conversationIdRef.current) {
           socket.emit('leave-conversation', conversationIdRef.current);
         }
+        // Clear conversation when leaving
+        window.dispatchEvent(new CustomEvent('chat-conversation-changed', {
+          detail: { conversationId: null }
+        }));
       };
     }
   }, [socket, isConnected, currentConversationId]);
@@ -433,9 +532,7 @@ export default function Chats() {
           conversationId: conv.conversationId || conv._id?.toString() || conv.id,
           userId: otherParticipantId,
           name: otherParticipant?.name || conv.name || 'Unknown',
-          avatar: (hasProfilePicture && profilePicture)
-            ? `http://localhost:3000/${profilePicture}` 
-            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
+          avatar: getProfilePictureUrl(profilePicture, hasProfilePicture),
           snippet: conv.snippet || conv.lastMessage || 'No messages yet',
           time: conv.time || (conv.lastMessageAt ? moment(conv.lastMessageAt).fromNow() : ''),
           lastMessageAt: conv.lastMessageAt || conv.time,
@@ -501,9 +598,7 @@ export default function Chats() {
           conversationId: messageConvId,
           userId: newMessage.sender?._id?.toString() || newMessage.sender?._id,
           name: newMessage.sender?.name || 'Unknown',
-          avatar: (senderHasProfilePicture && senderProfilePicture)
-            ? `http://localhost:3000/${senderProfilePicture}` 
-            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
+          avatar: getProfilePictureUrl(senderProfilePicture, senderHasProfilePicture),
           snippet: newMessage.text || 'No messages yet',
           time: newMessage.createdAt ? moment(newMessage.createdAt).fromNow() : '',
           lastMessageAt: newMessage.createdAt,
@@ -540,8 +635,17 @@ export default function Chats() {
         const convResponse = await getOrCreateConversation(chat.userId);
         conversationId = convResponse.data._id?.toString() || convResponse.data._id;
         setCurrentConversationId(conversationId);
+        // Notify SocketContext about current conversation
+        window.dispatchEvent(new CustomEvent('chat-conversation-changed', {
+          detail: { conversationId: conversationId }
+        }));
       } else if (conversationId) {
-        setCurrentConversationId(conversationId.toString());
+        const convIdString = conversationId.toString();
+        setCurrentConversationId(convIdString);
+        // Notify SocketContext about current conversation
+        window.dispatchEvent(new CustomEvent('chat-conversation-changed', {
+          detail: { conversationId: convIdString }
+        }));
       } else {
         toast.error('Unable to load conversation');
         setMessagesLoading(false);
@@ -557,16 +661,21 @@ export default function Chats() {
         return;
       }
       
-      const formattedMessages = messagesResponse.data.map(msg => ({
-        id: msg._id?.toString() || msg._id,
-        text: msg.text || '',
-        imageUrl: msg.imageUrl || null,
-        time: msg.createdAt ? moment(msg.createdAt).format('h:mm A') : '',
-        type: (msg.sender?._id?.toString() || msg.sender?._id) === (user?._id?.toString() || user?._id) ? 'sent' : 'received',
-        sender: msg.sender || {},
-        createdAt: msg.createdAt || new Date(),
-        conversationId: conversationId
-      }));
+      const formattedMessages = messagesResponse.data.map(msg => {
+        // Ensure imageUrl is properly preserved (could be Cloudinary URL or local path)
+        const imageUrl = msg.imageUrl || null;
+        
+        return {
+          id: msg._id?.toString() || msg._id,
+          text: msg.text || '',
+          imageUrl: imageUrl, // Preserve imageUrl as-is (Cloudinary URL or local path)
+          time: msg.createdAt ? moment(msg.createdAt).format('h:mm A') : '',
+          type: (msg.sender?._id?.toString() || msg.sender?._id) === (user?._id?.toString() || user?._id) ? 'sent' : 'received',
+          sender: msg.sender || {},
+          createdAt: msg.createdAt || new Date(),
+          conversationId: conversationId
+        };
+      });
 
       setMessages(formattedMessages);
       setMessagesLoading(false);
@@ -613,9 +722,7 @@ export default function Chats() {
         conversationId: conversationId,
         userId: friend._id,
         name: friend.name,
-        avatar: (friendHasProfilePicture && friendProfilePicture)
-          ? `http://localhost:3000/${friendProfilePicture}` 
-          : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png',
+        avatar: getProfilePictureUrl(friendProfilePicture, friendHasProfilePicture),
         snippet: 'No messages yet',
         time: '',
         unread: 0,
@@ -644,10 +751,20 @@ export default function Chats() {
     toast.info('Group messaging coming soon!');
   };
 
-  const handleSendMessage = async (e, imageUrlToSend = null) => {
+  const handleSendMessage = async (e) => {
     e.preventDefault();
     const textToSend = message.trim();
-    const finalImageUrl = imageUrlToSend || imagePreview;
+    // Use pendingImageUrl (Cloudinary URL) from state, never fallback to imagePreview (base64)
+    let finalImageUrl = pendingImageUrl || null;
+    
+    // Safety check: Reject base64 strings
+    if (finalImageUrl && (finalImageUrl.startsWith('data:image/') || finalImageUrl.startsWith('data:video/'))) {
+      console.error('❌ Attempted to send base64 string as imageUrl:', finalImageUrl.substring(0, 50));
+      toast.error('Image upload failed. Please try uploading again.');
+      setImagePreview(null);
+      setPendingImageUrl(null);
+      return;
+    }
     
     if ((!textToSend && !finalImageUrl) || !socket || !isConnected || !selectedChat) return;
 
@@ -664,6 +781,13 @@ export default function Chats() {
       imageUrl: finalImageUrl || undefined
     };
 
+    console.log('📤 Sending message:', {
+      text: messageData.text,
+      imageUrl: messageData.imageUrl?.substring(0, 50) + '...',
+      hasImage: !!messageData.imageUrl,
+      isBase64: messageData.imageUrl?.startsWith('data:')
+    });
+
     // Optimistically add message to UI
     const tempMessage = {
       id: `temp_${Date.now()}`,
@@ -675,9 +799,16 @@ export default function Chats() {
       createdAt: new Date()
     };
 
+    console.log('📝 Temp message created:', {
+      id: tempMessage.id,
+      imageUrl: tempMessage.imageUrl?.substring(0, 50) + '...',
+      hasImage: !!tempMessage.imageUrl
+    });
+
     setMessages(prev => [...prev, tempMessage]);
     setMessage("");
     setImagePreview(null);
+    setPendingImageUrl(null);
     scrollToBottom();
 
     // Stop typing indicator
@@ -702,20 +833,34 @@ export default function Chats() {
       const realConvId = realMessage.conversationId?.toString();
       const currentConvId = currentConversationId?.toString();
       
-      if (realConvId === currentConvId && realMessage.text === messageData.text) {
+      // Match by text OR by imageUrl (for image messages)
+      const textMatches = realMessage.text === messageData.text;
+      const imageMatches = realMessage.imageUrl && messageData.imageUrl && 
+                          realMessage.imageUrl === messageData.imageUrl;
+      const isMatchingMessage = textMatches || imageMatches;
+      
+      if (realConvId === currentConvId && isMatchingMessage) {
+        console.log('✅ Real message received via socket:', {
+          id: realMessage._id,
+          text: realMessage.text,
+          imageUrl: realMessage.imageUrl?.substring(0, 50) + '...',
+          hasImage: !!realMessage.imageUrl
+        });
+        
         // Remove temp message and add real one
         setMessages(prev => {
           const withoutTemp = prev.filter(m => !m.id.toString().startsWith('temp_'));
           const exists = withoutTemp.some(m => 
             (m.id?.toString() === realMessage._id?.toString()) ||
-            (m.text === realMessage.text && Math.abs(new Date(m.createdAt) - new Date(realMessage.createdAt)) < 5000)
+            (m.text === realMessage.text && Math.abs(new Date(m.createdAt) - new Date(realMessage.createdAt)) < 5000) ||
+            (m.imageUrl === realMessage.imageUrl && realMessage.imageUrl)
           );
           if (exists) return withoutTemp;
           
           const formattedMessage = {
             id: realMessage._id?.toString() || realMessage._id,
             text: realMessage.text || '',
-            imageUrl: realMessage.imageUrl || null,
+            imageUrl: realMessage.imageUrl || null, // Ensure imageUrl is preserved
             time: realMessage.createdAt 
               ? moment(realMessage.createdAt).format('h:mm A') 
               : moment().format('h:mm A'),
@@ -724,6 +869,8 @@ export default function Chats() {
             createdAt: realMessage.createdAt || new Date(),
             conversationId: realConvId
           };
+          
+          console.log('✅ Formatted message with imageUrl:', formattedMessage.imageUrl?.substring(0, 50));
           
           return [...withoutTemp, formattedMessage];
         });
@@ -791,29 +938,54 @@ export default function Chats() {
     }
 
     try {
-      // Show preview
+      // Show preview (local base64) for UI only
       const reader = new FileReader();
       reader.onload = (e) => {
         setImagePreview(e.target.result);
       };
       reader.readAsDataURL(file);
 
-      // Upload image
+      // Upload image to Cloudinary (for sending later with text)
       const formData = new FormData();
       formData.append('image', file);
       
       const response = await uploadChatImage(formData);
-      const imageUrl = response.data.imageUrl;
+      const cloudinaryImageUrl = response?.data?.imageUrl;
       
-      // Send message with image
-      if (imageUrl) {
-        const fakeEvent = { preventDefault: () => {} };
-        await handleSendMessage(fakeEvent, imageUrl);
+      // Validate that we got a Cloudinary URL (not base64)
+      if (!cloudinaryImageUrl) {
+        console.error('❌ No imageUrl received from server');
+        toast.error('Failed to get image URL from server');
+        setImagePreview(null);
+        setPendingImageUrl(null);
+        return;
       }
+      
+      // Safety check: Ensure it's a Cloudinary URL, not base64
+      if (cloudinaryImageUrl.startsWith('data:image/') || cloudinaryImageUrl.startsWith('data:video/')) {
+        console.error('❌ Server returned base64 instead of Cloudinary URL:', cloudinaryImageUrl.substring(0, 50));
+        toast.error('Image upload failed. Please try again.');
+        setImagePreview(null);
+        setPendingImageUrl(null);
+        return;
+      }
+      
+      // Ensure it's a valid URL
+      if (!cloudinaryImageUrl.startsWith('http://') && !cloudinaryImageUrl.startsWith('https://')) {
+        console.error('❌ Invalid imageUrl format from server:', cloudinaryImageUrl);
+        toast.error('Invalid image URL format');
+        setImagePreview(null);
+        setPendingImageUrl(null);
+        return;
+      }
+
+      // Store Cloudinary URL to send later together with optional text
+      setPendingImageUrl(cloudinaryImageUrl);
     } catch (error) {
       console.error('Error uploading image:', error);
       toast.error('Failed to upload image');
       setImagePreview(null);
+      setPendingImageUrl(null);
     }
   };
 
@@ -855,20 +1027,44 @@ export default function Chats() {
         }
         setShowCamera(false);
 
-        // Upload and send
+        // Upload to Cloudinary (will be attached to the next message)
         const formData = new FormData();
         formData.append('image', blob, 'camera-photo.jpg');
         
         const response = await uploadChatImage(formData);
-        const imageUrl = response.data.imageUrl;
+        const cloudinaryImageUrl = response?.data?.imageUrl;
         
-        if (imageUrl) {
-          const fakeEvent = { preventDefault: () => {} };
-          await handleSendMessage(fakeEvent, imageUrl);
+        // Validate that we got a Cloudinary URL (not base64)
+        if (!cloudinaryImageUrl) {
+          console.error('❌ No imageUrl received from server');
+          toast.error('Failed to get image URL from server');
+          return;
         }
+        
+        // Safety check: Ensure it's a Cloudinary URL, not base64
+        if (cloudinaryImageUrl.startsWith('data:image/') || cloudinaryImageUrl.startsWith('data:video/')) {
+          console.error('❌ Server returned base64 instead of Cloudinary URL:', cloudinaryImageUrl.substring(0, 50));
+          toast.error('Image upload failed. Please try again.');
+          setPendingImageUrl(null);
+          return;
+        }
+        
+        // Ensure it's a valid URL
+        if (!cloudinaryImageUrl.startsWith('http://') && !cloudinaryImageUrl.startsWith('https://')) {
+          console.error('❌ Invalid imageUrl format from server:', cloudinaryImageUrl);
+          toast.error('Invalid image URL format');
+          setPendingImageUrl(null);
+          return;
+        }
+
+        // Store Cloudinary URL and show a local preview so user can add text before sending
+        setPendingImageUrl(cloudinaryImageUrl);
+        const previewUrl = URL.createObjectURL(blob);
+        setImagePreview(previewUrl);
       } catch (error) {
         console.error('Error uploading photo:', error);
         toast.error('Failed to upload photo');
+        setPendingImageUrl(null);
       }
     }, 'image/jpeg', 0.9);
   };
@@ -1324,6 +1520,115 @@ export default function Chats() {
     };
   }, []);
 
+  // Context menu handlers
+  const handleMessageContextMenu = (e, message) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    setContextMenu({
+      isOpen: true,
+      message: message,
+      position: { x: e.clientX, y: e.clientY }
+    });
+  };
+
+  const handleLongPress = (e, message) => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+    }
+
+    longPressTimerRef.current = setTimeout(() => {
+      handleMessageContextMenu(e, message);
+    }, 500); // 500ms for long press
+  };
+
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const closeContextMenu = () => {
+    setContextMenu({ isOpen: false, message: null, position: { x: 0, y: 0 } });
+  };
+
+  // Edit message handler
+  const handleEditMessage = () => {
+    if (!contextMenu.message) return;
+    
+    setEditingMessage({
+      id: contextMenu.message.id,
+      text: contextMenu.message.text
+    });
+    closeContextMenu();
+  };
+
+  const handleSaveEdit = () => {
+    if (!editingMessage || !socket || !isConnected) return;
+
+    const messageId = editingMessage.id;
+    const newText = editingMessage.text.trim();
+
+    if (!newText) {
+      toast.error('Message cannot be empty');
+      return;
+    }
+
+    socket.emit('edit-message', {
+      messageId: messageId,
+      text: newText
+    });
+
+    setEditingMessage(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingMessage(null);
+  };
+
+  // Delete message handler (delete for everyone)
+  const handleDeleteMessage = () => {
+    if (!contextMenu.message || !socket || !isConnected) return;
+
+    const messageId = contextMenu.message.id;
+
+    if (window.confirm('Are you sure you want to delete this message for everyone?')) {
+      socket.emit('delete-message', { messageId });
+      closeContextMenu();
+    }
+  };
+
+  // Delete for me handler (only hide from sender)
+  const handleDeleteForMe = () => {
+    if (!contextMenu.message || !socket || !isConnected) return;
+
+    const messageId = contextMenu.message.id;
+
+    socket.emit('delete-for-me', { messageId });
+    closeContextMenu();
+  };
+
+  // Unsend message handler (delete from both users, only within 1 hour)
+  const handleUnsendMessage = () => {
+    if (!contextMenu.message || !socket || !isConnected) return;
+
+    const messageId = contextMenu.message.id;
+    const messageDate = new Date(contextMenu.message.createdAt);
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+    if (messageDate < oneHourAgo) {
+      toast.error('Can only unsend messages within 1 hour');
+      closeContextMenu();
+      return;
+    }
+
+    if (window.confirm('Are you sure you want to unsend this message?')) {
+      socket.emit('unsend-message', { messageId });
+      closeContextMenu();
+    }
+  };
+
   const formatTime = (date) => {
     if (!date) return '';
     const momentDate = moment(date);
@@ -1487,27 +1792,111 @@ export default function Chats() {
                   currentMessages.map((msg) => {
                     if (!msg || !msg.id) return null;
                     const imageUrl = msg.imageUrl;
-                    const imageSrc = imageUrl?.startsWith('http') 
-                      ? imageUrl 
-                      : imageUrl 
-                        ? `http://localhost:3000/${imageUrl}` 
-                        : null;
+                    // Use getImageUrl for all image URLs (handles both Cloudinary and local paths)
+                    const imageSrc = imageUrl ? getImageUrl(imageUrl) : null;
                     
+                    // Debug logging for image messages
+                    if (imageUrl) {
+                      console.log('🖼️ Rendering message with image:', {
+                        msgId: msg.id,
+                        imageUrl: imageUrl.substring(0, 50) + '...',
+                        imageSrc: imageSrc?.substring(0, 50) + '...',
+                        isBase64: imageUrl.startsWith('data:'),
+                        isCloudinary: imageUrl.includes('cloudinary')
+                      });
+                    }
+                    
+                    const isEditing = editingMessage?.id === msg.id;
+                    const isDeleted = msg.deleted || msg.text === 'This message was deleted';
+                    const isUnsent = msg.unsent;
+                    const isDeletedForSender = msg.deletedForSender;
+                    const isDeletedForRecipient = msg.deletedForRecipient;
+                    
+                    // Check if current user is sender or recipient
+                    const isCurrentUserSender = msg.sender?._id?.toString() === user?._id?.toString() || 
+                                                 msg.sender?._id === user?._id ||
+                                                 msg.type === 'sent';
+                    const isCurrentUserRecipient = !isCurrentUserSender;
+                    
+                    // Skip rendering unsent messages, messages deleted for sender (if user is sender), 
+                    // or messages deleted for recipient (if user is recipient)
+                    if (isUnsent || 
+                        (isDeletedForSender && isCurrentUserSender) || 
+                        (isDeletedForRecipient && isCurrentUserRecipient)) {
+                      return null;
+                    }
+
                     return (
-                      <div key={msg.id} className={`message-wrapper ${msg.type || 'received'}`}>
-                        <div className={`message-bubble ${msg.type || 'received'}`}>
-                          {imageSrc && (
+                      <div 
+                        key={msg.id} 
+                        className={`message-wrapper ${msg.type || 'received'}`}
+                        onContextMenu={(e) => handleMessageContextMenu(e, msg)}
+                        onMouseDown={(e) => handleLongPress(e, msg)}
+                        onMouseUp={handleLongPressEnd}
+                        onMouseLeave={handleLongPressEnd}
+                        onTouchStart={(e) => handleLongPress(e, msg)}
+                        onTouchEnd={handleLongPressEnd}
+                        onTouchCancel={handleLongPressEnd}
+                      >
+                        <div className={`message-bubble ${msg.type || 'received'} ${isDeleted ? 'deleted' : ''}`}>
+                          {imageSrc && !isDeleted && (
                             <div className="message-image-container">
                               <img 
                                 src={imageSrc} 
                                 alt="Shared" 
                                 className="message-image"
                                 onClick={() => window.open(imageSrc, '_blank')}
+                                onError={(e) => {
+                                  console.error('❌ Failed to load chat image:', {
+                                    originalUrl: imageUrl?.substring(0, 50),
+                                    processedUrl: imageSrc?.substring(0, 50),
+                                    msgId: msg.id
+                                  });
+                                  e.target.style.display = 'none';
+                                }}
+                                onLoad={() => {
+                                  console.log('✅ Image loaded successfully:', imageSrc?.substring(0, 50));
+                                }}
                               />
                             </div>
                           )}
-                          {msg.text && msg.text !== '📷 Photo' && (
-                            <div className="message-text">{msg.text}</div>
+                          {isEditing ? (
+                            <div className="message-edit-container">
+                              <input
+                                type="text"
+                                className="message-edit-input"
+                                value={editingMessage.text}
+                                onChange={(e) => setEditingMessage({ ...editingMessage, text: e.target.value })}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveEdit();
+                                  } else if (e.key === 'Escape') {
+                                    handleCancelEdit();
+                                  }
+                                }}
+                                autoFocus
+                              />
+                              <div className="message-edit-actions">
+                                <button className="btn-icon-small" onClick={handleSaveEdit} title="Save">
+                                  <FiSend size={14} />
+                                </button>
+                                <button className="btn-icon-small" onClick={handleCancelEdit} title="Cancel">
+                                  <FiX size={14} />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              {msg.text && msg.text !== '📷 Photo' && (
+                                <div className={`message-text ${isDeleted ? 'deleted-text' : ''}`}>
+                                  {isDeleted ? 'This message was deleted' : msg.text}
+                                </div>
+                              )}
+                              {msg.edited && !isDeleted && (
+                                <span className="message-edited-indicator">edited</span>
+                              )}
+                            </>
                           )}
                         </div>
                         <span className="message-time">{msg.time || ''}</span>
@@ -1544,7 +1933,10 @@ export default function Chats() {
                     <img src={imagePreview} alt="Preview" className="image-preview" />
                     <button 
                       className="image-preview-close"
-                      onClick={() => setImagePreview(null)}
+                      onClick={() => {
+                        setImagePreview(null);
+                        setPendingImageUrl(null);
+                      }}
                     >
                       ×
                     </button>
@@ -1591,7 +1983,7 @@ export default function Chats() {
                     onFocus={() => setShowEmojiPicker(false)}
                     disabled={!isConnected}
                   />
-                  {message.trim() ? (
+                  {(message.trim() || pendingImageUrl) ? (
                     <button type="submit" className="btn-send" disabled={!isConnected}>
                       <FiSend size={18} />
                     </button>
@@ -1693,6 +2085,19 @@ export default function Chats() {
           onEnd={endCall}
         />
       )}
+
+      {/* Message Context Menu */}
+      <MessageContextMenu
+        isOpen={contextMenu.isOpen}
+        position={contextMenu.position}
+        message={contextMenu.message}
+        currentUserId={user?._id}
+        onClose={closeContextMenu}
+        onEdit={handleEditMessage}
+        onDelete={handleDeleteMessage}
+        onDeleteForMe={handleDeleteForMe}
+        onUnsend={handleUnsendMessage}
+      />
     </div>
   );
 }

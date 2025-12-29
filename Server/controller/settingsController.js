@@ -206,6 +206,8 @@ const createSettingsFromEnv = async () => {
     googleApiKey: envVars.GOOGLE_API_KEY || "",
     googleVisionApiKey: envVars.GOOGLE_VISION_API_KEY || "",
     googlePlacesApiKey: envVars.GOOGLE_PLACES_API_KEY || "",
+    googleGeminiApiKey: envVars.GOOGLE_GEMINI_API_KEY || "",
+    textRazorApiKey: envVars.TEXTRAZOR_API_KEY || "",
   };
 
   return await Settings.create(settingsData);

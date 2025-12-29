@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { FiBell, FiRefreshCw } from "react-icons/fi";
 import "../assests/css/notifications.css";
+import { getProfilePictureUrl } from '../utils/imageUtils.js';
 import { listNotifications, markAllRead } from "../api/notificationsApi.jsx";
 import { useAuth } from "../context/AuthContext.jsx";
 import { NotificationSkeleton } from '../components/SkeletonLoader.jsx';
@@ -179,9 +180,7 @@ export default function Notifications() {
                       <img 
                         onClick={() => !isAdmin && openUserProfile(n.actor?._id, isAdmin)} 
                         src={
-                          n.actor?.hasProfilePicture && n.actor?.profilePicture 
-                            ? `http://localhost:3000/${n.actor.profilePicture}` 
-                            : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                          getProfilePictureUrl(n.actor?.profilePicture, n.actor?.hasProfilePicture)
                         } 
                         alt="actor" 
                         className="rounded-circle" 

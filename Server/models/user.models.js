@@ -1,5 +1,8 @@
 import mongoose from "mongoose";
 
+const USER_INTERESTS = ["history", "nature", "culture", "food", "adventure"];
+const USER_TRAVEL_TIME = ["1_day", "3_days", "7_days"];
+
 const userSchema = new mongoose.Schema(
   {
     name: {
@@ -77,6 +80,32 @@ const userSchema = new mongoose.Schema(
     isProfilePrivate: {
       type: Boolean,
       default: false, // false = public, true = private
+    },
+
+    // Personalized recommendations (optional; safe defaults for backward compatibility)
+    interests: {
+      type: [
+        {
+          type: String,
+          enum: USER_INTERESTS,
+          trim: true,
+          lowercase: true,
+        },
+      ],
+      default: [],
+    },
+    travelTime: {
+      type: String,
+      enum: [...USER_TRAVEL_TIME, null],
+      default: null,
+    },
+    visitedPlaces: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Place" }],
+      default: [],
+    },
+    savedPlaces: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: "Place" }],
+      default: [],
     },
   },
 

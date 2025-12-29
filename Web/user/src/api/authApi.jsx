@@ -46,6 +46,7 @@ export const updateMe = (data) => {
   if (data.city) fd.append("city", data.city);
   if (data.bio) fd.append("bio", data.bio);
   if (data.isProfilePrivate !== undefined) fd.append("isProfilePrivate", data.isProfilePrivate);
+  if (data.interests !== undefined) fd.append("interests", JSON.stringify(data.interests));
   return api.put("/users/me", fd, { headers: { "Content-Type": "multipart/form-data" } });
 };
 

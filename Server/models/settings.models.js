@@ -43,9 +43,11 @@ const settingsSchema = new mongoose.Schema(
     auth0CallbackUrl: { type: String, default: "" },
     
     // API Keys
-    googleApiKey: { type: String, default: "" }, // Will be masked
+    googleApiKey: { type: String, default: "" },
+    textRazorApiKey: { type: String, default: "" }, // Will be masked
     googleVisionApiKey: { type: String, default: "" }, // Will be masked (optional, falls back to googleApiKey)
     googlePlacesApiKey: { type: String, default: "" }, // Will be masked (optional, falls back to googleApiKey)
+    googleGeminiApiKey: { type: String, default: "" }, // Will be masked (optional, falls back to googleApiKey)
     
     // System Settings
     maintenanceMode: { type: Boolean, default: false },

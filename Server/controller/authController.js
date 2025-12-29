@@ -102,3 +102,76 @@ export const authCallback = async (req, res) => {
     return res.status(500).send("Authentication failed");
   }
 };
+
+// Mobile Google Sign-In endpoint
+export const mobileGoogleSignIn = async (req, res) => {
+  try {
+    const { idToken } = req.body;
+    
+    if (!idToken) {
+      return res.status(400).json({ message: "Google ID token is required" });
+    }
+
+    // Verify Google ID token with Google's API
+    const googleResponse = await axios.get(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`
+    );
+
+    const { email, name, picture, sub } = googleResponse.data;
+
+    if (!email) {
+      return res.status(400).json({ message: "Invalid Google token - email not found" });
+    }
+
+    // Check if user exists
+    let user = await User.findOne({ email });
+    
+    if (!user) {
+      // Create new user with Google account
+      user = await User.create({
+        auth0Id: `google-oauth2|${sub}`,
+        email,
+        name: name || email.split('@')[0],
+        profilePicture: picture,
+      });
+    } else if (!user.auth0Id) {
+      // Link Google account to existing user
+      user.auth0Id = `google-oauth2|${sub}`;
+      if (!user.profilePicture && picture) {
+        user.profilePicture = picture;
+      }
+      await user.save();
+    }
+
+    // Generate app token
+    const appToken = jwt.sign({ id: user._id }, process.env.SECRET_KEY, {
+      expiresIn: "1d",
+    });
+
+    // Return token and user data for mobile app
+    return res.status(200).json({
+      message: "Google sign-in successful",
+      token: appToken,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        profilePicture: user.profilePicture,
+        role: user.role,
+      },
+    });
+  } catch (err) {
+    console.error("Mobile Google sign-in error:", err.response?.data || err.message || err);
+    
+    if (err.response?.status === 400) {
+      return res.status(400).json({ 
+        message: "Invalid Google token" 
+      });
+    }
+    
+    return res.status(500).json({ 
+      message: "Google authentication failed",
+      error: err.message 
+    });
+  }
+};

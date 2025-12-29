@@ -12,122 +12,73 @@ import {
   FiUser,
   FiCalendar,
   FiTag,
-  FiImage
+  FiImage,
+  FiRefreshCw
 } from 'react-icons/fi';
 import { SkeletonKPICard, SkeletonFilters, SkeletonText } from '../components/SkeletonLoader';
+import { getPendingPlaces, approvePlace, rejectPlace } from '../api/adminApi';
+import Toast from '../components/Toast';
 import './ManageRecommendations.css';
 
 const ManageRecommendations = () => {
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoading(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
-  // Sample recommendation data - matching exact image
-  const [recommendations] = useState([
-    {
-      id: 1,
-      title: 'Hidden Garden Oasis in City Center',
-      description: 'A serene and tranquil garden spot, perfect for a quiet afternoon escape from the bustling city.',
-      submittedBy: 'Alice Johnson',
-      date: '2024-07-20',
-      status: 'Pending',
-      category: 'Nature',
-      image: null,
-      flags: []
-    },
-    {
-      id: 2,
-      title: 'Sunset Rooftop Cafe with Live Music',
-      description: 'Enjoy breathtaking sunset views and live acoustic music every evening. Serves artisanal coffee.',
-      submittedBy: 'Bob Smith',
-      date: '2024-07-19',
-      status: 'Approved',
-      category: 'Food & Drink',
-      image: null,
-      flags: ['Potential spam', 'Incorrect category']
-    },
-    {
-      id: 3,
-      title: 'Vibrant Street Art Alley',
-      description: 'A hidden alleyway transformed into an open-air gallery by local street artists. Constantly evolving with new murals and graffiti masterpieces.',
-      submittedBy: 'Charlie Brown',
-      date: '2024-07-18',
-      status: 'Pending',
-      category: 'Arts',
-      image: null,
-      flags: []
-    },
-    {
-      id: 4,
-      title: 'Cozy Vintage Bookstore & Tea Room',
-      description: 'Step back in time in this charming bookstore, offering rare first editions and a selection of fine teas and pastries.',
-      submittedBy: 'Diana Prince',
-      date: '2024-07-17',
-      status: 'Rejected',
-      category: 'Shopping',
-      image: null,
-      flags: ['Duplicate entry', 'Business closed']
-    },
-    {
-      id: 5,
-      title: 'Weekly Organic Farmers Market',
-      description: 'Every Saturday, local farmers bring their freshest goods.',
-      submittedBy: 'Eve Adams',
-      date: '2024-07-16',
-      status: 'Pending',
-      category: 'Shopping',
-      image: null,
-      flags: []
-    },
-    {
-      id: 6,
-      title: 'Historic Coastal Lighthouse Walk',
-      description: 'A scenic walk leading to a beautifully preserved 19th-century lighthouse. Offers stunning coastal views.',
-      submittedBy: 'Frank White',
-      date: '2024-07-15',
-      status: 'Approved',
-      category: 'Attractions',
-      image: null,
-      flags: []
-    },
-    {
-      id: 7,
-      title: 'Immersive VR Gaming Arena',
-      description: 'Experience the future of gaming in this state-of-the-art VR arena. Group experiences and solo adventures available.',
-      submittedBy: 'Grace Lee',
-      date: '2024-07-14',
-      status: 'Pending',
-      category: 'Attractions',
-      image: null,
-      flags: []
-    },
-    {
-      id: 8,
-      title: 'Popular Urban Skatepark',
-      description: 'A lively hub for skateboarders and rollerbladers of all skill levels. Features various ramps, rails, and a community atmosphere.',
-      submittedBy: 'Harry Quinn',
-      date: '2024-07-13',
-      status: 'Approved',
-      category: 'Attractions',
-      image: null,
-      flags: []
-    },
-  ]);
+  const [recommendations, setRecommendations] = useState([]);
+  const [error, setError] = useState('');
+  const [actionLoading, setActionLoading] = useState({});
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
 
   // State for filters
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All Statuses');
   const [selectedCategory, setSelectedCategory] = useState('All Categories');
 
+  // Fetch recommendations from backend
+  const fetchRecommendations = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const response = await getPendingPlaces();
+      const places = Array.isArray(response?.data?.places) ? response.data.places : [];
+      
+      // Transform backend data to match frontend format
+      const transformed = places.map(place => ({
+        id: place._id,
+        title: place.name || 'Untitled Place',
+        description: place.description || place.address || 'No description available',
+        submittedBy: place.submittedBy?.name || place.submittedBy?.email || 'Unknown',
+        date: place.createdAt ? new Date(place.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+        status: place.status === 'pending' ? 'Pending' : place.status === 'approved' ? 'Approved' : 'Rejected',
+        category: place.tags && place.tags.length > 0 ? place.tags[0].charAt(0).toUpperCase() + place.tags[0].slice(1) : 'Uncategorized',
+        tags: place.tags || [],
+        image: place.media && place.media.length > 0 && place.media[0].type === 'image' 
+          ? place.media[0].url 
+          : null,
+        address: place.address || '',
+        estimatedCost: place.estimatedCost || 0,
+        rejectionReason: place.rejectionReason || null,
+        flags: place.rejectionReason ? [place.rejectionReason] : []
+      }));
+      
+      setRecommendations(transformed);
+    } catch (err) {
+      console.error('Error fetching recommendations:', err);
+      setError(err?.response?.data?.message || 'Failed to load recommendations');
+      setRecommendations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRecommendations();
+  }, []);
+
   // Calculate KPIs
   const kpis = useMemo(() => {
     const pending = recommendations.filter(r => r.status === 'Pending').length;
+    const today = new Date().toISOString().split('T')[0];
     const approvedToday = recommendations.filter(r => 
-      r.status === 'Approved' && r.date === new Date().toISOString().split('T')[0]
+      r.status === 'Approved' && r.date === today
     ).length;
     const total = recommendations.length;
     const last7Days = recommendations.filter(r => {
@@ -141,9 +92,10 @@ const ManageRecommendations = () => {
     return { pending, approvedToday, total, last7Days };
   }, [recommendations]);
 
-  // Get unique categories
+  // Get unique categories from tags
   const categories = useMemo(() => {
-    const unique = [...new Set(recommendations.map(r => r.category))];
+    const allTags = recommendations.flatMap(r => r.tags || []);
+    const unique = [...new Set(allTags.map(tag => tag.charAt(0).toUpperCase() + tag.slice(1)))];
     return ['All Categories', ...unique];
   }, [recommendations]);
 
@@ -153,21 +105,52 @@ const ManageRecommendations = () => {
       const matchesSearch = 
         rec.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         rec.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        rec.submittedBy.toLowerCase().includes(searchQuery.toLowerCase());
+        rec.submittedBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (rec.address && rec.address.toLowerCase().includes(searchQuery.toLowerCase()));
       
       const matchesStatus = selectedStatus === 'All Statuses' || rec.status === selectedStatus;
-      const matchesCategory = selectedCategory === 'All Categories' || rec.category === selectedCategory;
+      const matchesCategory = selectedCategory === 'All Categories' || 
+        rec.tags.some(tag => tag.toLowerCase() === selectedCategory.toLowerCase());
 
       return matchesSearch && matchesStatus && matchesCategory;
     });
   }, [recommendations, searchQuery, selectedStatus, selectedCategory]);
 
-  // Handle status change
-  const handleStatusChange = (id, newStatus) => {
-    // In a real app, this would update the backend
-    console.log(`Changing recommendation ${id} status to ${newStatus}`);
-    // For now, we'll just show an alert
-    alert(`Recommendation status changed to ${newStatus}`);
+  // Handle approve
+  const handleApprove = async (id) => {
+    try {
+      setActionLoading(prev => ({ ...prev, [id]: true }));
+      await approvePlace(id);
+      setRecommendations(prev => prev.filter(r => r.id !== id));
+      setToast({ show: true, message: 'Place approved successfully', type: 'success' });
+      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    } catch (err) {
+      console.error('Error approving place:', err);
+      setToast({ show: true, message: err?.response?.data?.message || 'Failed to approve place', type: 'error' });
+      setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 3000);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  // Handle reject
+  const handleReject = async (id) => {
+    const reason = window.prompt('Rejection reason (optional):') || 'Rejected by admin';
+    if (reason === null) return; // User cancelled
+    
+    try {
+      setActionLoading(prev => ({ ...prev, [id]: true }));
+      await rejectPlace(id, reason);
+      setRecommendations(prev => prev.filter(r => r.id !== id));
+      setToast({ show: true, message: 'Place rejected successfully', type: 'success' });
+      setTimeout(() => setToast({ show: false, message: '', type: 'success' }), 3000);
+    } catch (err) {
+      console.error('Error rejecting place:', err);
+      setToast({ show: true, message: err?.response?.data?.message || 'Failed to reject place', type: 'error' });
+      setTimeout(() => setToast({ show: false, message: '', type: 'error' }), 3000);
+    } finally {
+      setActionLoading(prev => ({ ...prev, [id]: false }));
+    }
   };
 
   // Get status badge class
@@ -182,6 +165,12 @@ const ManageRecommendations = () => {
       default:
         return 'status-tag';
     }
+  };
+
+  // Format date
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
   };
 
   if (loading) {
@@ -218,9 +207,45 @@ const ManageRecommendations = () => {
 
   return (
     <div className="manage-recommendations-page">
+      {/* Toast Notification */}
+      {toast.show && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast({ show: false, message: '', type: 'success' })}
+        />
+      )}
+
       {/* Page Header */}
       <div className="page-header">
-        <h1 className="page-title">Manage Recommendations</h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h1 className="page-title">Manage Recommendations</h1>
+          <button 
+            onClick={fetchRecommendations} 
+            disabled={loading}
+            className="refresh-btn"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '8px',
+              padding: '8px 16px',
+              background: '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.6 : 1
+            }}
+          >
+            <FiRefreshCw />
+            Refresh
+          </button>
+        </div>
+        {error && (
+          <div style={{ marginTop: '12px', padding: '12px', background: '#fee2e2', color: '#991b1b', borderRadius: '8px' }}>
+            {error}
+          </div>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -234,7 +259,16 @@ const ManageRecommendations = () => {
               <div className="kpi-value">{kpis.pending}</div>
               <div className="kpi-label">Pending Recommendations</div>
               <div className="kpi-description">Recommendations awaiting review.</div>
-              <a href="#" className="kpi-link">View all pending</a>
+              <a 
+                href="#" 
+                className="kpi-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedStatus('Pending');
+                }}
+              >
+                View all pending
+              </a>
             </div>
           </div>
         </div>
@@ -248,7 +282,16 @@ const ManageRecommendations = () => {
               <div className="kpi-value">{kpis.approvedToday}</div>
               <div className="kpi-label">Approved Today</div>
               <div className="kpi-description">Recommendations approved today.</div>
-              <a href="#" className="kpi-link">View daily approvals</a>
+              <a 
+                href="#" 
+                className="kpi-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedStatus('Approved');
+                }}
+              >
+                View daily approvals
+              </a>
             </div>
           </div>
         </div>
@@ -262,7 +305,16 @@ const ManageRecommendations = () => {
               <div className="kpi-value">{kpis.total}</div>
               <div className="kpi-label">Total Recommendations</div>
               <div className="kpi-description">Total recommendations in system.</div>
-              <a href="#" className="kpi-link">View all recommendations</a>
+              <a 
+                href="#" 
+                className="kpi-link"
+                onClick={(e) => {
+                  e.preventDefault();
+                  setSelectedStatus('All Statuses');
+                }}
+              >
+                View all recommendations
+              </a>
             </div>
           </div>
         </div>
@@ -331,83 +383,125 @@ const ManageRecommendations = () => {
 
       {/* Recommendations Grid */}
       <div className="recommendations-grid">
-        {filteredRecommendations.map(rec => (
-          <div key={rec.id} className="recommendation-card">
-            <div className="card-header">
-              <span className={getStatusClass(rec.status)}>
-                {rec.status}
-              </span>
-            </div>
-            
-            <div className="card-image">
-              {rec.image ? (
-                <img src={rec.image} alt={rec.title} />
-              ) : (
-                <div className="image-placeholder">
-                  <svg className="mountain-icon" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <circle cx="80" cy="15" r="8" fill="#c084fc" opacity="0.7"/>
-                    <path d="M0 50 L30 20 L50 35 L70 15 L100 45 L100 60 L0 60 Z" fill="#c084fc" opacity="0.4"/>
-                    <path d="M20 50 L40 25 L60 40 L80 20 L100 50 L100 60 L20 60 Z" fill="#c084fc" opacity="0.5"/>
-                  </svg>
-                </div>
-              )}
-            </div>
-
-            <div className="card-body">
-              <h3 className="card-title">{rec.title}</h3>
-              <p className="card-description">{rec.description}</p>
+        {filteredRecommendations.map(rec => {
+          const isLoading = actionLoading[rec.id];
+          return (
+            <div key={rec.id} className="recommendation-card">
+              <div className="card-header">
+                <span className={getStatusClass(rec.status)}>
+                  {rec.status}
+                </span>
+              </div>
               
-              <div className="card-meta">
-                <div className="meta-item">
-                  <FiUser className="meta-icon" />
-                  <span>{rec.submittedBy}</span>
-                  <span className="meta-separator">•</span>
-                  <FiCalendar className="meta-icon" />
-                  <span>{rec.date}</span>
-                </div>
+              <div className="card-image">
+                {rec.image ? (
+                  <img src={rec.image} alt={rec.title} />
+                ) : (
+                  <div className="image-placeholder">
+                    <svg className="mountain-icon" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="80" cy="15" r="8" fill="#c084fc" opacity="0.7"/>
+                      <path d="M0 50 L30 20 L50 35 L70 15 L100 45 L100 60 L0 60 Z" fill="#c084fc" opacity="0.4"/>
+                      <path d="M20 50 L40 25 L60 40 L80 20 L100 50 L100 60 L20 60 Z" fill="#c084fc" opacity="0.5"/>
+                    </svg>
+                  </div>
+                )}
               </div>
 
-              {rec.flags && rec.flags.length > 0 && (
-                <div className="card-flags">
-                  <FiAlertTriangle className="flag-icon" />
-                  <span className="flag-text">
-                    Flagged: {rec.flags.join(', ')}
-                  </span>
-                </div>
-              )}
-            </div>
+              <div className="card-body">
+                <h3 className="card-title">{rec.title}</h3>
+                <p className="card-description">{rec.description}</p>
+                
+                {rec.address && (
+                  <p className="card-address" style={{ fontSize: '13px', color: '#6b7280', marginTop: '8px' }}>
+                    📍 {rec.address}
+                  </p>
+                )}
 
-            <div className="card-actions">
-              <button className="view-details-btn">
-                <FiEye />
-                View Details
-              </button>
-              {rec.status === 'Pending' && (
-                <>
-                  <button 
-                    className="approve-btn"
-                    onClick={() => handleStatusChange(rec.id, 'Approved')}
-                  >
-                    <FiCheck />
-                    Approve
-                  </button>
-                  <button 
-                    className="reject-btn"
-                    onClick={() => handleStatusChange(rec.id, 'Rejected')}
-                  >
-                    <FiX />
-                    Reject
-                  </button>
-                </>
-              )}
+                {rec.tags && rec.tags.length > 0 && (
+                  <div className="card-tags" style={{ marginTop: '12px', display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {rec.tags.map((tag, idx) => (
+                      <span 
+                        key={idx}
+                        style={{
+                          padding: '4px 8px',
+                          background: '#e0e7ff',
+                          color: '#4338ca',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          fontWeight: '500'
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {rec.estimatedCost > 0 && (
+                  <p style={{ fontSize: '13px', color: '#059669', marginTop: '8px', fontWeight: '500' }}>
+                    Estimated Cost: PKR {rec.estimatedCost.toLocaleString()}
+                  </p>
+                )}
+                
+                <div className="card-meta">
+                  <div className="meta-item">
+                    <FiUser className="meta-icon" />
+                    <span>{rec.submittedBy}</span>
+                    <span className="meta-separator">•</span>
+                    <FiCalendar className="meta-icon" />
+                    <span>{formatDate(rec.date)}</span>
+                  </div>
+                </div>
+
+                {rec.flags && rec.flags.length > 0 && (
+                  <div className="card-flags">
+                    <FiAlertTriangle className="flag-icon" />
+                    <span className="flag-text">
+                      Flagged: {rec.flags.join(', ')}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="card-actions">
+                <button className="view-details-btn" disabled={isLoading}>
+                  <FiEye />
+                  View Details
+                </button>
+                {rec.status === 'Pending' && (
+                  <>
+                    <button 
+                      className="approve-btn"
+                      onClick={() => handleApprove(rec.id)}
+                      disabled={isLoading}
+                    >
+                      <FiCheck />
+                      {isLoading ? 'Processing...' : 'Approve'}
+                    </button>
+                    <button 
+                      className="reject-btn"
+                      onClick={() => handleReject(rec.id)}
+                      disabled={isLoading}
+                    >
+                      <FiX />
+                      {isLoading ? 'Processing...' : 'Reject'}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {filteredRecommendations.length === 0 && (
+      {filteredRecommendations.length === 0 && !loading && (
         <div className="no-results">
           <p>No recommendations found matching your filters.</p>
+          {recommendations.length === 0 && (
+            <p style={{ marginTop: '8px', color: '#6b7280' }}>
+              No recommendations have been submitted yet.
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -415,4 +509,3 @@ const ManageRecommendations = () => {
 };
 
 export default ManageRecommendations;
-

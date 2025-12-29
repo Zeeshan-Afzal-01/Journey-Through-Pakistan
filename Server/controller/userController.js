@@ -130,10 +130,16 @@ const generateOTP = () => {
   return otp;
 };
 
-// Helper function to check if profile picture file exists
+// Helper function to check if profile picture exists
+// Now supports both Cloudinary URLs and local file paths
 const checkProfilePictureExists = (profilePicturePath) => {
   if (!profilePicturePath) return false;
   try {
+    // If it's a Cloudinary URL (starts with http/https), consider it valid
+    if (profilePicturePath.startsWith('http://') || profilePicturePath.startsWith('https://')) {
+      return true;
+    }
+    // Otherwise, check if local file exists (for backward compatibility)
     const fullPath = path.join(__dirname, "..", profilePicturePath);
     return fs.existsSync(fullPath);
   } catch (error) {
@@ -530,16 +536,37 @@ export const updateMe = async (req, res) => {
       updates.password = await bcrypt.hash(updates.password, salt);
     }
     
-    // Handle profile picture upload (single file or from fields)
-    if (req.file) {
-      updates.profilePicture = `uploads/profiles/${req.file.filename}`;
+    // Handle profile picture upload (single file or from fields) - Upload to Cloudinary
+    if (req.file && req.file.buffer) {
+      try {
+        const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'jtp/profiles', 'image');
+        updates.profilePicture = uploadResult.url;
+      } catch (uploadError) {
+        console.error('Error uploading profile picture to Cloudinary:', uploadError);
+        return res.status(500).json({ message: "Error uploading profile picture", error: uploadError.message });
+      }
     }
     if (req.files) {
-      if (req.files.profilePicture && req.files.profilePicture[0]) {
-        updates.profilePicture = `uploads/profiles/${req.files.profilePicture[0].filename}`;
+      if (req.files.profilePicture && req.files.profilePicture[0] && req.files.profilePicture[0].buffer) {
+        try {
+          const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+          const uploadResult = await uploadToCloudinary(req.files.profilePicture[0].buffer, 'jtp/profiles', 'image');
+          updates.profilePicture = uploadResult.url;
+        } catch (uploadError) {
+          console.error('Error uploading profile picture to Cloudinary:', uploadError);
+          return res.status(500).json({ message: "Error uploading profile picture", error: uploadError.message });
+        }
       }
-      if (req.files.coverPhoto && req.files.coverPhoto[0]) {
-        updates.coverPhoto = `uploads/covers/${req.files.coverPhoto[0].filename}`;
+      if (req.files.coverPhoto && req.files.coverPhoto[0] && req.files.coverPhoto[0].buffer) {
+        try {
+          const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+          const uploadResult = await uploadToCloudinary(req.files.coverPhoto[0].buffer, 'jtp/covers', 'image');
+          updates.coverPhoto = uploadResult.url;
+        } catch (uploadError) {
+          console.error('Error uploading cover photo to Cloudinary:', uploadError);
+          return res.status(500).json({ message: "Error uploading cover photo", error: uploadError.message });
+        }
       }
     }
     
@@ -548,6 +575,45 @@ export const updateMe = async (req, res) => {
     if (req.body.city) updates.city = req.body.city;
     if (req.body.bio) updates.bio = req.body.bio;
     if (req.body.isProfilePrivate !== undefined) updates.isProfilePrivate = req.body.isProfilePrivate === true || req.body.isProfilePrivate === 'true';
+
+    // Handle personalization fields (interests)
+    if (req.body.interests !== undefined) {
+      const ALLOWED_INTERESTS = new Set(["history", "nature", "culture", "food", "adventure"]);
+      const raw = req.body.interests;
+
+      let parsed = raw;
+      if (typeof raw === "string") {
+        const trimmed = raw.trim();
+        if (trimmed === "") {
+          parsed = [];
+        } else {
+          try {
+            parsed = JSON.parse(trimmed);
+          } catch {
+            parsed = trimmed.split(",").map((s) => s.trim()).filter(Boolean);
+          }
+        }
+      }
+
+      if (!Array.isArray(parsed)) {
+        return res.status(400).json({ message: "Invalid interests format" });
+      }
+
+      const normalized = [];
+      for (const v of parsed) {
+        if (typeof v !== "string") {
+          return res.status(400).json({ message: "Interests must be an array of strings" });
+        }
+        const interest = v.trim().toLowerCase();
+        if (!interest) continue;
+        if (!ALLOWED_INTERESTS.has(interest)) {
+          return res.status(400).json({ message: `Invalid interest: ${interest}` });
+        }
+        if (!normalized.includes(interest)) normalized.push(interest);
+      }
+
+      updates.interests = normalized;
+    }
     
     const updated = await User.findByIdAndUpdate(req.user.id, updates, {
       new: true,
@@ -836,10 +902,18 @@ export const getUserStats = async (req, res) => {
     const userWithFriends = await User.findById(userId).select('friends').lean();
     const friendsCount = userWithFriends?.friends?.length || 0;
     
+    // Get landmarks identified count
+    const LandmarkSearch = (await import('../models/landmarkSearch.models.js')).default;
+    const landmarksCount = await LandmarkSearch.countDocuments({ 
+      user: userId,
+      landmark_found: true 
+    });
+    
     res.json({
       postsCount,
       savedPostsCount,
-      friendsCount
+      friendsCount,
+      landmarksCount
     });
   } catch (err) {
     console.error('Error fetching user stats:', err);

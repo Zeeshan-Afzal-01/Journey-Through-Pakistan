@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { FiHome, FiMapPin, FiMessageCircle, FiStar, FiUser, FiMenu, FiX } from "react-icons/fi";
+import { FiHome, FiMapPin, FiMessageCircle, FiStar, FiUser, FiMenu, FiX, FiBookmark } from "react-icons/fi";
 import { useSocket } from "../context/SocketContext";
 import { useAuth } from "../context/AuthContext";
 import { getUnreadCount } from "../api/messageApi";
@@ -10,7 +10,7 @@ export default function Sidebar() {
   const [isOpen, setIsOpen] = useState(false);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const location = useLocation();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { socket, isConnected } = useSocket();
 
   // Close sidebar when clicking outside on mobile
@@ -226,6 +226,28 @@ export default function Sidebar() {
                 <span>Recommendations</span>
               </NavLink>
             </li>
+            <li>
+              <NavLink 
+                to="/my-places" 
+                className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? "active" : "link-dark"}`}
+                onClick={handleNavClick}
+              >
+                <FiBookmark />
+                <span>My Places</span>
+              </NavLink>
+            </li>
+            {user?.role === "local" && (
+              <li>
+                <NavLink 
+                  to="/suggest-place" 
+                  className={({ isActive }) => `nav-link d-flex align-items-center gap-2 ${isActive ? "active" : "link-dark"}`}
+                  onClick={handleNavClick}
+                >
+                  <FiMapPin />
+                  <span>Suggest Place</span>
+                </NavLink>
+              </li>
+            )}
             <li>
               <NavLink 
                 to="/profile" 

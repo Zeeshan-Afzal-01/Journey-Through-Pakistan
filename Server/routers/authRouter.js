@@ -1,6 +1,6 @@
 // routes/authRoutes.js
 import express from "express";
-import { authCallback } from "../controller/authController.js";
+import { authCallback, mobileGoogleSignIn } from "../controller/authController.js";
 const router = express.Router();
 import {config} from 'dotenv';
 config();
@@ -37,5 +37,8 @@ router.get("/login/apple", (req, res) => {
 });
 
 router.get("/callback", authCallback);
+
+// Mobile Google Sign-In endpoint
+router.post("/mobile/google", mobileGoogleSignIn);
 
 export default router;

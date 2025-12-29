@@ -740,3 +740,65 @@
     left: 0;
   }
 }
+
+/* Message Edit Styles */
+.message-edit-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-edit-input {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+}
+
+.message-edit-input:focus {
+  border-color: #007bff;
+}
+
+.message-edit-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.btn-icon-small {
+  background: transparent;
+  border: none;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.btn-icon-small:hover {
+  background-color: #f0f0f0;
+}
+
+/* Deleted Message Styles */
+.message-bubble.deleted {
+  opacity: 0.6;
+  background-color: #f5f5f5;
+}
+
+.deleted-text {
+  font-style: italic;
+  color: #999;
+}
+
+.message-edited-indicator {
+  font-size: 10px;
+  color: #999;
+  font-style: italic;
+  margin-left: 4px;
+}

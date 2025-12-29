@@ -36,6 +36,9 @@ const SecurityLogs = () => {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [itemsPerPage] = useState(50);
+  const [adminRole, setAdminRole] = useState(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessError, setAccessError] = useState(null);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -59,14 +62,101 @@ const SecurityLogs = () => {
 
   const { success, error, warning, info, toasts, removeToast } = useToast();
 
+  // Check admin permissions (Supervisor or above required)
   useEffect(() => {
-    fetchLogs();
-    fetchStats();
-  }, [currentPage, filters, sortBy, sortOrder]);
+    const checkAccess = async () => {
+      try {
+        // Get from localStorage first
+        const cachedUser = localStorage.getItem('adminUser');
+        if (cachedUser) {
+          try {
+            const user = JSON.parse(cachedUser);
+            if (user.adminRole) {
+              setAdminRole(user.adminRole);
+              // Supervisor or above (CEO, Supervisor) have access
+              if (user.adminRole === 'ceo' || user.adminRole === 'supervisor') {
+                setHasAccess(true);
+                setAccessError(null);
+              } else {
+                setHasAccess(false);
+                setAccessError('Access Denied. Supervisor or above access required.');
+              }
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+
+        // Fetch from server
+        try {
+          const { getAdminPermissions } = await import('../api/adminApi');
+          const response = await getAdminPermissions();
+          if (response.data) {
+            const role = response.data.adminRole;
+            setAdminRole(role);
+            
+            // Supervisor or above (CEO, Supervisor) have access
+            if (role === 'ceo' || role === 'supervisor') {
+              setHasAccess(true);
+              setAccessError(null);
+            } else {
+              setHasAccess(false);
+              setAccessError('Access Denied. Supervisor or above access required.');
+            }
+          }
+        } catch (permError) {
+          // Fallback: Check from admin profile
+          try {
+            const { getAdminProfile } = await import('../api/adminApi');
+            const profileResponse = await getAdminProfile();
+            if (profileResponse.data) {
+              const role = profileResponse.data.adminRole;
+              setAdminRole(role);
+              if (role === 'ceo' || role === 'supervisor') {
+                setHasAccess(true);
+                setAccessError(null);
+              } else {
+                setHasAccess(false);
+                setAccessError('Access Denied. Supervisor or above access required.');
+              }
+            }
+          } catch (profileError) {
+            console.error('Error fetching admin profile:', profileError);
+            setHasAccess(false);
+            setAccessError('Unable to verify access permissions.');
+          }
+        }
+      } catch (err) {
+        console.error('Error in checkAccess:', err);
+        setHasAccess(false);
+        setAccessError('Unable to verify access permissions.');
+      }
+    };
+
+    checkAccess();
+  }, []);
+
+  useEffect(() => {
+    // Only fetch if user has access
+    if (hasAccess) {
+      fetchLogs();
+      fetchStats();
+    } else {
+      setLoading(false);
+      setStatsLoading(false);
+    }
+  }, [currentPage, filters, sortBy, sortOrder, hasAccess]);
 
   const fetchLogs = async () => {
+    // Don't fetch if user doesn't have access
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      setAccessError(null);
       const params = {
         page: currentPage,
         limit: itemsPerPage,
@@ -85,13 +175,25 @@ const SecurityLogs = () => {
       }
     } catch (err) {
       console.error('Error fetching security logs:', err);
-      error('Failed to load security logs. Please try again.');
+      if (err.response?.status === 403) {
+        setHasAccess(false);
+        setAccessError(err.response?.data?.message || 'Access Denied. Supervisor or above access required.');
+        error('Access Denied. Supervisor or above access required.');
+      } else {
+        error('Failed to load security logs. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchStats = async () => {
+    // Don't fetch if user doesn't have access
+    if (!hasAccess) {
+      setStatsLoading(false);
+      return;
+    }
+
     try {
       setStatsLoading(true);
       const params = {};
@@ -104,6 +206,10 @@ const SecurityLogs = () => {
       }
     } catch (err) {
       console.error('Error fetching stats:', err);
+      if (err.response?.status === 403) {
+        setHasAccess(false);
+        setAccessError(err.response?.data?.message || 'Access Denied. Supervisor or above access required.');
+      }
     } finally {
       setStatsLoading(false);
     }
@@ -339,6 +445,37 @@ const SecurityLogs = () => {
   const severities = ['low', 'medium', 'high', 'critical'];
   const statuses = ['success', 'failed', 'warning', 'info'];
 
+  // Show access denied message if user doesn't have access
+  if (!hasAccess && !loading) {
+    return (
+      <div className="security-logs-page">
+        <div className="access-denied-container" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          minHeight: '400px'
+        }}>
+          <FiAlertCircle size={64} style={{ color: '#ef4444', marginBottom: '1rem' }} />
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1f2937' }}>
+            Access Denied
+          </h2>
+          <p style={{ fontSize: '1rem', color: '#6b7280', maxWidth: '500px', marginBottom: '1rem' }}>
+            {accessError || 'You do not have permission to access security logs. Supervisor or above access is required.'}
+          </p>
+          {adminRole && (
+            <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+              Your current role: <strong style={{ textTransform: 'uppercase' }}>{adminRole}</strong>
+            </p>
+          )}
+        </div>
+        <ToastContainer toasts={toasts} removeToast={removeToast} />
+      </div>
+    );
+  }
+
   return (
     <div className="security-logs-page">
       <ToastContainer toasts={toasts} removeToast={removeToast} />
@@ -352,34 +489,36 @@ const SecurityLogs = () => {
           </h1>
           <p className="page-subtitle">Monitor and track security events across the platform</p>
         </div>
-        <div className="header-actions">
-          <button
-            className="action-btn secondary"
-            onClick={() => setShowFilters(!showFilters)}
-          >
-            <FiFilter /> Filters
-          </button>
-          <button
-            className="action-btn secondary"
-            onClick={fetchLogs}
-            disabled={loading}
-          >
-            <FiRefreshCw className={loading ? 'spinning' : ''} /> Refresh
-          </button>
-          <div className="export-dropdown">
+        {hasAccess && (
+          <div className="header-actions">
             <button
-              className="action-btn primary"
-              onClick={() => handleExport('json')}
-              disabled={exportLoading}
+              className="action-btn secondary"
+              onClick={() => setShowFilters(!showFilters)}
             >
-              <FiDownload /> {exportLoading ? 'Exporting...' : 'Export'}
+              <FiFilter /> Filters
             </button>
+            <button
+              className="action-btn secondary"
+              onClick={fetchLogs}
+              disabled={loading}
+            >
+              <FiRefreshCw className={loading ? 'spinning' : ''} /> Refresh
+            </button>
+            <div className="export-dropdown">
+              <button
+                className="action-btn primary"
+                onClick={() => handleExport('json')}
+                disabled={exportLoading}
+              >
+                <FiDownload /> {exportLoading ? 'Exporting...' : 'Export'}
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Stats Cards */}
-      {stats && (
+      {hasAccess && stats && (
         <div className="security-stats-grid">
           <div className="stat-card">
             <div className="stat-value">{stats.total || 0}</div>
@@ -403,7 +542,7 @@ const SecurityLogs = () => {
       )}
 
       {/* Filters */}
-      {showFilters && (
+      {hasAccess && showFilters && (
         <div className="security-filters">
           <div className="filters-grid">
             <div className="filter-group">
@@ -493,8 +632,9 @@ const SecurityLogs = () => {
       )}
 
       {/* Logs Table */}
-      <div className="security-logs-table-container">
-        {loading ? (
+      {hasAccess && (
+        <div className="security-logs-table-container">
+          {loading ? (
           <SkeletonTable rows={10} cols={7} />
         ) : (
           <>
@@ -600,7 +740,8 @@ const SecurityLogs = () => {
             )}
           </>
         )}
-      </div>
+        </div>
+      )}
 
       {/* Log Details Modal */}
       {showLogDetails && selectedLog && (

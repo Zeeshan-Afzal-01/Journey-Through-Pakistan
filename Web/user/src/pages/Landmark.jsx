@@ -22,6 +22,12 @@ export default function Landmark() {
     return "https://maps.google.com/maps?q=Lahore%2C%20Pakistan&t=k&z=12&output=embed";
   }, [coords]);
 
+  // Auto-use current location when page loads
+  useEffect(() => {
+    onUseCurrentLocation();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch nearby places when coordinates are set
   useEffect(() => {
     const fetchNearbyPlaces = async () => {
@@ -59,7 +65,6 @@ export default function Landmark() {
           `Current Location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
         );
         setIsLoading(false);
-        toast.success("Location captured successfully");
         // Nearby places will be fetched automatically via useEffect
       },
       (error) => {
@@ -271,7 +276,10 @@ export default function Landmark() {
                 </div>
               ) : nearestPlaces.length > 0 ? (
                 <div className="row g-3 g-md-4">
-                  {nearestPlaces.slice(0, 10).map((place, index) => (
+                  {nearestPlaces
+                    .filter((place) => !!place.photo_url) // only places with images
+                    .slice(0, 5) // show only first 5
+                    .map((place, index) => (
                     <div key={place.place_id || index} className="col-12 col-md-6 col-xl-4">
                       <div className="nearest-item d-flex align-items-center justify-content-between border rounded-3 p-2 px-3">
                         <div className="d-flex align-items-center gap-3 flex-grow-1">

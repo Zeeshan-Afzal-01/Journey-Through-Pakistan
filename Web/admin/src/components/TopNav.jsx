@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FiSearch, FiBell, FiHelpCircle, FiUser, FiLogOut, FiSettings, FiX, FiMenu, FiPlus, FiHome, FiMapPin, FiBarChart2, FiFileText } from 'react-icons/fi';
 import { searchUsers } from '../api/adminApi';
 import { SkeletonText } from './SkeletonLoader';
+import { getProfilePictureUrl } from '../utils/imageUtils';
 import './TopNav.css';
 
 const TopNav = () => {
@@ -88,6 +89,16 @@ const TopNav = () => {
       }
     };
     fetchAdminProfile();
+
+    // Listen for profile updates
+    const handleProfileUpdate = () => {
+      fetchAdminProfile();
+    };
+    window.addEventListener('adminProfileUpdated', handleProfileUpdate);
+
+    return () => {
+      window.removeEventListener('adminProfileUpdated', handleProfileUpdate);
+    };
   }, []);
 
   // Fetch notifications
@@ -301,14 +312,16 @@ const TopNav = () => {
                   onClick={() => handleSearchResultClick(user)}
                 >
                   <div className="search-result-avatar">
-                    {user.hasProfilePicture && user.profilePicture ? (
-                      <img 
-                        src={`http://localhost:3000/${user.profilePicture}`} 
-                        alt={user.name}
-                      />
-                    ) : (
-                      <span>{getInitials(user.name)}</span>
-                    )}
+                    <img 
+                      src={getProfilePictureUrl(user.profilePicture, user.hasProfilePicture)} 
+                      alt={user.name}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const span = e.target.nextElementSibling;
+                        if (span) span.style.display = 'flex';
+                      }}
+                    />
+                    <span style={{ display: 'none' }}>{getInitials(user.name)}</span>
                   </div>
                   <div className="search-result-info">
                     <div className="search-result-name">{user.name}</div>
@@ -432,27 +445,36 @@ const TopNav = () => {
               }
             }}
           >
-            {adminUser?.hasProfilePicture && adminUser?.profilePicture ? (
-              <img 
-                src={`http://localhost:3000/${adminUser.profilePicture}`} 
-                alt={adminUser.name}
-              />
-            ) : (
-              <span>{getInitials(adminUser?.name)}</span>
-            )}
+            <img 
+              src={getProfilePictureUrl(adminUser?.profilePicture, adminUser?.hasProfilePicture)} 
+              alt={adminUser?.name}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const placeholder = e.target.nextElementSibling;
+                if (placeholder) placeholder.style.display = 'flex';
+              }}
+            />
+            <span style={{ display: 'none' }}>
+              {getInitials(adminUser?.name)}
+            </span>
           </div>
           {showProfileMenu && (
             <div className={`profile-dropdown ${isMobile ? 'mobile' : ''}`}>
               <div className="profile-dropdown-header">
                 <div className="profile-dropdown-avatar">
-                  {adminUser?.hasProfilePicture && adminUser?.profilePicture ? (
-                    <img 
-                      src={`http://localhost:3000/${adminUser.profilePicture}`} 
-                      alt={adminUser.name}
+                  <img 
+                    src={getProfilePictureUrl(adminUser?.profilePicture, adminUser?.hasProfilePicture)} 
+                    alt={adminUser?.name}
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                        const placeholder = e.target.nextElementSibling;
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
                     />
-                  ) : (
-                    <span>{getInitials(adminUser?.name)}</span>
-                  )}
+                  ) : null}
+                  <span style={{ display: (!adminUser?.hasProfilePicture || !adminUser?.profilePicture) ? 'flex' : 'none' }}>
+                    {getInitials(adminUser?.name)}
+                  </span>
                 </div>
                 <div className="profile-dropdown-info">
                   <div className="profile-dropdown-name">{adminUser?.name || 'Admin'}</div>
@@ -533,14 +555,16 @@ const TopNav = () => {
                   }}
                 >
                   <div className="search-result-avatar">
-                    {user.hasProfilePicture && user.profilePicture ? (
-                      <img 
-                        src={`http://localhost:3000/${user.profilePicture}`} 
-                        alt={user.name}
-                      />
-                    ) : (
-                      <span>{getInitials(user.name)}</span>
-                    )}
+                    <img 
+                      src={getProfilePictureUrl(user.profilePicture, user.hasProfilePicture)} 
+                      alt={user.name}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const span = e.target.nextElementSibling;
+                        if (span) span.style.display = 'flex';
+                      }}
+                    />
+                    <span style={{ display: 'none' }}>{getInitials(user.name)}</span>
                   </div>
                   <div className="search-result-info">
                     <div className="search-result-name">{user.name}</div>

@@ -192,3 +192,9 @@ export const getGooglePlacesAPIKey = async () => {
   return settings.googlePlacesApiKey || process.env.GOOGLE_PLACES_API_KEY || await getGoogleAPIKey();
 };
 
+// Get Google Gemini API Key
+export const getGoogleGeminiAPIKey = async () => {
+  const settings = await getSettings();
+  return settings.googleGeminiApiKey || process.env.GOOGLE_GEMINI_API_KEY || await getGoogleAPIKey();
+};
+

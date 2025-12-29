@@ -1,5 +1,5 @@
 import express from 'express';
-import { identifyLandmark, getNearbyPlaces } from '../controller/landmarkController.js';
+import { identifyLandmark, getNearbyPlaces, getLandmarkById, getUserLandmarkCount, getPlacePhotos, getNearbyPlacesForLandmark, proxyPlacePhoto } from '../controller/landmarkController.js';
 import uploadLandmark from '../middleware/uploadLandmark.js';
 import { verifyToken } from '../middleware/auth.js';
 
@@ -71,6 +71,39 @@ router.post(
   uploadLandmark.single('image'),
   identifyLandmark
 );
+
+/**
+ * GET /landmarks/user/count
+ * Get user's landmark search count (requires authentication)
+ * Must come before /:landmarkId route
+ */
+router.get('/user/count', verifyToken, getUserLandmarkCount);
+
+/**
+ * GET /landmarks/place/:placeId/photos
+ * Get photos for a place (public - no authentication required)
+ */
+router.get('/place/:placeId/photos', getPlacePhotos);
+
+/**
+ * GET /landmarks/photo/:photoReference
+ * Proxy endpoint for Google Places photos (public - no authentication required)
+ * Query params: maxwidth (optional, default: 1600)
+ */
+router.get('/photo/:photoReference', proxyPlacePhoto);
+
+/**
+ * GET /landmarks/nearby-for-landmark
+ * Get nearby places using landmark coordinates (public - no authentication required)
+ */
+router.get('/nearby-for-landmark', getNearbyPlacesForLandmark);
+
+/**
+ * GET /landmarks/:landmarkId
+ * Get landmark by ID (public - no authentication required)
+ * Must be last to avoid matching other routes
+ */
+router.get('/:landmarkId', getLandmarkById);
 
 export default router;
 

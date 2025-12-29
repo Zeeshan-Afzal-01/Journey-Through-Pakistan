@@ -8,6 +8,7 @@ import { toast } from 'react-toastify'
 import '../assests/css/sidebar.css'
 import '../assests/css/customStyle.css'
 import '../assests/css/skeleton.css'
+import { getProfilePictureUrl } from '../utils/imageUtils.js'
 
 export default function navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -352,11 +353,7 @@ export default function navbar() {
                                     openUserProfile(n.actor?._id, isAdmin);
                                   }
                                 }} 
-                                src={
-                                  n.actor?.hasProfilePicture && n.actor?.profilePicture 
-                                    ? `http://localhost:3000/${n.actor.profilePicture}` 
-                                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
-                                } 
+                                src={getProfilePictureUrl(n.actor?.profilePicture, n.actor?.hasProfilePicture)} 
                                 alt="actor" 
                                 className="rounded-circle" 
                                 style={{ 
@@ -418,11 +415,7 @@ export default function navbar() {
                 >
                   
                   <img 
-                    src={
-                      user?.hasProfilePicture && user?.profilePicture 
-                        ? `http://localhost:3000/${user.profilePicture}` 
-                        : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-                    } 
+                    src={getProfilePictureUrl(user?.profilePicture, user?.hasProfilePicture)} 
                     alt="Profile" 
                     className="rounded-circle" 
                     style={{ width: 40, height: 40, objectFit: 'cover' }} 

@@ -12,7 +12,8 @@ import {
   FiLock,
   FiLogOut,
   FiMenu,
-  FiX
+  FiX,
+  FiUser
 } from 'react-icons/fi';
 import './Sidebar.css';
 
@@ -21,6 +22,7 @@ const Sidebar = () => {
   const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [hasSettingsAccess, setHasSettingsAccess] = useState(false);
 
   useEffect(() => {
     const handleResize = () => {
@@ -33,6 +35,88 @@ const Sidebar = () => {
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const [hasSecurityLogsAccess, setHasSecurityLogsAccess] = useState(false);
+  const [hasModerationAccess, setHasModerationAccess] = useState(false);
+
+  // Check if user has access to settings (CEO only), security logs (Supervisor or above), and moderation (Supervisor or above)
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        // Check from localStorage first
+        const cachedUser = localStorage.getItem('adminUser');
+        if (cachedUser) {
+          try {
+            const user = JSON.parse(cachedUser);
+            const role = user.adminRole;
+            
+            // Settings: CEO only
+            if (role === 'ceo') {
+              setHasSettingsAccess(true);
+            }
+            
+            // Security Logs & Moderation: Supervisor or above (CEO, Supervisor)
+            if (role === 'ceo' || role === 'supervisor') {
+              setHasSecurityLogsAccess(true);
+              setHasModerationAccess(true);
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+
+        // Fetch from server
+        try {
+          const { getAdminPermissions } = await import('../api/adminApi');
+          const response = await getAdminPermissions();
+          if (response.data) {
+            const role = response.data.adminRole;
+            const permissions = response.data.permissions || [];
+            
+            // Settings: CEO only
+            if (role === 'ceo' || permissions.includes('manage_settings')) {
+              setHasSettingsAccess(true);
+            }
+            
+            // Security Logs & Moderation: Supervisor or above
+            if (role === 'ceo' || role === 'supervisor') {
+              setHasSecurityLogsAccess(true);
+              setHasModerationAccess(true);
+            }
+          }
+        } catch (permError) {
+          // Fallback: Check from admin profile
+          try {
+            const { getAdminProfile } = await import('../api/adminApi');
+            const profileResponse = await getAdminProfile();
+            if (profileResponse.data) {
+              const role = profileResponse.data.adminRole;
+              
+              // Settings: CEO only
+              if (role === 'ceo') {
+                setHasSettingsAccess(true);
+              }
+              
+              // Security Logs & Moderation: Supervisor or above
+              if (role === 'ceo' || role === 'supervisor') {
+                setHasSecurityLogsAccess(true);
+                setHasModerationAccess(true);
+              }
+            }
+          } catch (profileError) {
+            // Ignore errors
+          }
+        }
+      } catch (err) {
+        // Ignore errors, default to no access
+        setHasSettingsAccess(false);
+        setHasSecurityLogsAccess(false);
+        setHasModerationAccess(false);
+      }
+    };
+
+    checkAccess();
   }, []);
 
   const toggleSidebar = () => {
@@ -86,9 +170,13 @@ const Sidebar = () => {
     { path: '/recommendations', icon: FiMapPin, label: 'Manage Recommendations' },
     { path: '/analytics', icon: FiBarChart2, label: 'Analytics' },
     { path: '/notifications', icon: FiBell, label: 'Notifications' },
-    { path: '/moderation', icon: FiFileText, label: 'Moderation' },
-    { path: '/settings', icon: FiSettings, label: 'Settings' },
-    { path: '/security', icon: FiLock, label: 'Security Logs' },
+    // Only show Moderation if user has Supervisor or above access
+    ...(hasModerationAccess ? [{ path: '/moderation', icon: FiFileText, label: 'Moderation' }] : []),
+    { path: '/profile', icon: FiUser, label: 'Profile' },
+    // Only show Settings if user has CEO access
+    ...(hasSettingsAccess ? [{ path: '/settings', icon: FiSettings, label: 'Settings' }] : []),
+    // Only show Security Logs if user has Supervisor or above access
+    ...(hasSecurityLogsAccess ? [{ path: '/security', icon: FiLock, label: 'Security Logs' }] : []),
   ];
 
   return (

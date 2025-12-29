@@ -6,6 +6,7 @@ import { getPost, addComment, toggleLike, sharePost, updatePost, deletePost, rep
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { PostDetailSkeleton, CommentSkeleton } from '../components/SkeletonLoader.jsx';
+import { getProfilePictureUrl, getImageUrl } from "../utils/imageUtils";
 import "../assests/css/skeleton.css";
 
 export default function PostDetail() {
@@ -160,9 +161,7 @@ export default function PostDetail() {
                 <img
                   className="rounded-circle me-2 post-avatar"
                   src={
-                    post.author?.hasProfilePicture && post.author?.profilePicture
-                      ? `http://localhost:3000/${post.author.profilePicture}`
-                      : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
+                    getProfilePictureUrl(post.author?.profilePicture, post.author?.hasProfilePicture)
                   }
                   alt={post.author?.name || "User"}
                   onClick={() => navigate(`/profile?userId=${post.author?._id || post.author}`)}
@@ -187,10 +186,10 @@ export default function PostDetail() {
                   )}
                 </div>
               </div>
-                  <h2 className="fw-bolder mb-3">{post.text}</h2>
+                  <p className="mb-3" style={{ fontSize: '1rem', fontWeight: 'normal', lineHeight: '1.6' }}>{post.text}</p>
                   {post.imageUrl && (
               <div className="ratio ratio-16x9 rounded overflow-hidden mb-3">
-                      <img className="object-fit-cover" src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} alt={post.text} />
+                      <img className="object-fit-cover" src={getImageUrl(post.imageUrl)} alt={post.text} />
                     </div>
                   )}
                   {(post.place || post.feeling) && (
@@ -236,11 +235,7 @@ export default function PostDetail() {
                   <div className="d-flex gap-2 border-bottom pb-3 position-relative" key={c._id}>
                    <img
   className="rounded-circle me-2 post-avatar"
-  src={
-    c.author?.hasProfilePicture && c.author?.profilePicture
-      ? `http://localhost:3000/${c.author.profilePicture}`
-      : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-  }
+  src={getProfilePictureUrl(c.author?.profilePicture, c.author?.hasProfilePicture)}
   alt={c.author?.name || "User"}
   onClick={() => navigate(`/profile?userId=${c.author?._id || c.author}`)}
   style={{ cursor: 'pointer' }}
@@ -290,14 +285,33 @@ export default function PostDetail() {
               </div>
             </div>
           </div>
-          <div className="card shadow-sm mb-3">
-            <div className="card-body">
-              <h6 className="fw-bold mb-2">Post Tags</h6>
-              <div className="d-flex flex-wrap gap-2">
-                {[]}
+          {post && (
+            <div className="card shadow-sm mb-3">
+              <div className="card-body">
+                <h6 className="fw-bold mb-2">Post Tags</h6>
+                <div className="d-flex flex-wrap gap-2">
+                  {post.hashtags && post.hashtags.length > 0 ? (
+                    post.hashtags.map((tag, index) => (
+                      <span 
+                        key={index} 
+                        className="badge"
+                        style={{ 
+                          backgroundColor: '#0d6efd', 
+                          color: 'white',
+                          fontSize: '0.875rem',
+                          padding: '0.375rem 0.75rem'
+                        }}
+                      >
+                        #{tag}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-muted small">No tags</span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           <div className="card shadow-sm">
             <div className="card-body">
@@ -306,11 +320,7 @@ export default function PostDetail() {
               <div className="d-flex align-items-center gap-2 mb-2">
                                 <img
   className="rounded-circle me-2 post-avatar"
-  src={
-    post.author?.hasProfilePicture && post.author?.profilePicture
-      ? `http://localhost:3000/${post.author.profilePicture}`
-      : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"
-  }
+  src={getProfilePictureUrl(post.author?.profilePicture, post.author?.hasProfilePicture)}
   alt={post.author?.name || "User"}
   onClick={() => navigate(`/profile?userId=${post.author?._id || post.author}`)}
   style={{ cursor: 'pointer' }}
@@ -526,7 +536,7 @@ function EditPostModal({ post, onClose, onUpdate }) {
             {post.imageUrl && (
               <div className="mb-3">
                 <img 
-                  src={post.imageUrl.startsWith('http') ? post.imageUrl : `http://localhost:3000/${post.imageUrl}`} 
+                  src={getImageUrl(post.imageUrl)} 
                   alt="post" 
                   className="img-fluid rounded"
                 />

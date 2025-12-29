@@ -5,6 +5,8 @@ import { Link } from "react-router-dom";
 import "../assests/css/dashboard.css";
 import { AuthContext } from "../context/AuthContext";
 import { getCommunityAttractionsByMonth, getRecentActivities, getUserStats, getLocalConnections } from "../api/authApi.jsx";
+import { getPersonalizedRecommendations } from "../api/recommendationsApi.jsx";
+import { markPlaceVisited, toggleSavePlace } from "../api/placesApi.jsx";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { DashboardSkeleton } from '../components/SkeletonLoader.jsx';
 import "../assests/css/skeleton.css";
@@ -17,11 +19,15 @@ const Dashboard = () => {
   const [timePeriod, setTimePeriod] = useState('12months') // '7days', '30days', '12months', 'year'
   const [activities, setActivities] = useState([])
   const [loadingActivities, setLoadingActivities] = useState(true)
-  const [userStats, setUserStats] = useState({ postsCount: 0, savedPostsCount: 0, friendsCount: 0 })
+  const [userStats, setUserStats] = useState({ postsCount: 0, savedPostsCount: 0, friendsCount: 0, landmarksCount: 0 })
   const [loadingStats, setLoadingStats] = useState(true)
   const [initialLoading, setInitialLoading] = useState(true)
   const [localConnectionsCount, setLocalConnectionsCount] = useState(0)
   const [loadingLocalConnections, setLoadingLocalConnections] = useState(true)
+  const [recommendations, setRecommendations] = useState([])
+  const [recommendationsReason, setRecommendationsReason] = useState("Based on your interests and nearby location")
+  const [loadingRecommendations, setLoadingRecommendations] = useState(true)
+  const [placeActionLoading, setPlaceActionLoading] = useState({})
   const pollingIntervalRef = useRef(null)
   const activitiesPollingRef = useRef(null)
   const statsPollingRef = useRef(null)
@@ -100,7 +106,8 @@ const Dashboard = () => {
       setUserStats({
         postsCount: data.postsCount || 0,
         savedPostsCount: data.savedPostsCount || 0,
-        friendsCount: data.friendsCount || 0
+        friendsCount: data.friendsCount || 0,
+        landmarksCount: data.landmarksCount || 0
       })
       setLoadingStats(false)
     } catch (error) {
@@ -123,6 +130,92 @@ const Dashboard = () => {
       setLoadingLocalConnections(false)
     }
   }
+
+  const getBrowserLocation = () => {
+    return new Promise((resolve) => {
+      if (!navigator?.geolocation) return resolve(null);
+
+      navigator.geolocation.getCurrentPosition(
+        (pos) =>
+          resolve({
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+          }),
+        () => resolve(null),
+        {
+          enableHighAccuracy: false,
+          timeout: 5000,
+          maximumAge: 10 * 60 * 1000,
+        }
+      );
+    });
+  };
+
+  const formatDistance = (meters) => {
+    if (typeof meters !== "number" || !Number.isFinite(meters)) return "Distance unavailable";
+    if (meters < 1000) return `${Math.round(meters)} m`;
+    return `${(meters / 1000).toFixed(1)} km`;
+  };
+
+  const formatEstimatedCost = (place) => {
+    const value =
+      place?.estimatedCost ??
+      place?.estimated_cost ??
+      place?.cost ??
+      place?.price ??
+      null;
+
+    if (value === null || value === undefined || value === "") return "N/A";
+    if (typeof value === "number" && Number.isFinite(value)) return `PKR ${value.toLocaleString()}`;
+    return String(value);
+  };
+
+  const fetchRecommendations = async () => {
+    try {
+      setLoadingRecommendations(true)
+      const loc = await getBrowserLocation()
+      const params = loc ? { lat: loc.lat, lng: loc.lng } : {}
+      const { data } = await getPersonalizedRecommendations(params)
+
+      setRecommendationsReason(data?.reason || "Based on your interests and nearby location")
+      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : [])
+      setLoadingRecommendations(false)
+    } catch (error) {
+      console.error('Error fetching personalized recommendations:', error)
+      setRecommendations([])
+      setLoadingRecommendations(false)
+    }
+  }
+
+  const setActionLoading = (placeId, value) => {
+    setPlaceActionLoading((prev) => ({ ...prev, [placeId]: value }));
+  };
+
+  const handleMarkVisited = async (placeId) => {
+    if (!placeId) return;
+    try {
+      setActionLoading(placeId, true);
+      await markPlaceVisited(placeId);
+      // Optimistic UX: remove from list immediately since visited places are excluded in future fetches.
+      setRecommendations((prev) => prev.filter((p) => p?._id !== placeId));
+    } catch (error) {
+      console.error("Error marking visited:", error);
+    } finally {
+      setActionLoading(placeId, false);
+    }
+  };
+
+  const handleToggleSave = async (placeId) => {
+    if (!placeId) return;
+    try {
+      setActionLoading(placeId, true);
+      await toggleSavePlace(placeId);
+    } catch (error) {
+      console.error("Error saving place:", error);
+    } finally {
+      setActionLoading(placeId, false);
+    }
+  };
 
   const getTimeAgo = (date) => {
     if (!date) return '';
@@ -158,6 +251,7 @@ const Dashboard = () => {
     }
     
     loadInitialData()
+    fetchRecommendations()
     
     // Set up polling every 30 seconds for real-time updates (only after initial load)
     // Reduced frequency to avoid constant reloading and improve performance
@@ -261,7 +355,11 @@ const Dashboard = () => {
             <div className="card-body d-flex justify-content-between align-items-center">
               <div>
                 <div className="text-muted small">Landmarks Identified</div>
-                <div className="display-6 fw-bold">18</div>
+                {loadingStats ? (
+                  <div className="skeleton-text" style={{ width: '40px', height: '48px' }}></div>
+                ) : (
+                  <div className="display-6 fw-bold">{userStats.landmarksCount}</div>
+                )}
               </div>
               <FiGrid size={22} className="text-secondary" />
             </div>
@@ -436,69 +534,70 @@ const Dashboard = () => {
       {/* Personalized Recommendations */}
       <div className="mt-4">
         <h5 className="fw-bold mb-3">Personalized Recommendations For You</h5>
-        <div className="row g-3">
-          <div className="col-12 col-md-6 col-xl-4">
-            <div className="card recommendation-card shadow-sm h-100">
-              <img className="card-img-top" src="https://images.unsplash.com/photo-1605099256177-3b1b43b77fff?q=80&w=1200&auto=format&fit=crop" alt="Neelum Valley" />
-              <div className="card-body">
-                <h6 className="fw-bold mb-1">Neelum Valley</h6>
-                <div className="text-muted small mb-2"><FiGrid className="me-1" />Azad Kashmir</div>
-                <p className="mb-0 text-muted">Known for its lush greenery, stunning waterfalls, and serene rivers. Ideal for nature lovers and trekkers.</p>
-              </div>
-            </div>
-          </div>
-          <div className="col-12 col-md-6 col-xl-4">
-            <div className="card recommendation-card shadow-sm h-100">
-              <img className="card-img-top" src="https://images.unsplash.com/photo-1591104224523-7a7a00305d01?q=80&w=1200&auto=format&fit=crop" alt="Hunza Valley" />
-              <div className="card-body">
-                <h6 className="fw-bold mb-1">Hunza Valley</h6>
-                <div className="text-muted small mb-2"><FiGrid className="me-1" />Gilgit-Baltistan</div>
-                <p className="mb-0 text-muted">A majestic mountain valley famous for its ancient forts, apricot orchards, and breathtaking views of Rakaposhi.</p>
-              </div>
-            </div>
-          </div>
-          <div className="col-12 col-md-6 col-xl-4">
-            <div className="card recommendation-card shadow-sm h-100">
-              <img className="card-img-top" src="https://images.unsplash.com/photo-1589307004173-3c952054f62d?q=80&w=1200&auto=format&fit=crop" alt="Badshahi Mosque" />
-              <div className="card-body">
-                <h6 className="fw-bold mb-1">Badshahi Mosque</h6>
-                <div className="text-muted small mb-2"><FiGrid className="me-1" />Lahore, Punjab</div>
-                <p className="mb-0 text-muted">An iconic Mughal-era mosque, showcasing exquisite architecture and a rich history.</p>
-              </div>
-            </div>
-          </div>
+        <p className="text-muted mb-3">{recommendationsReason}</p>
 
-          <div className="col-12 col-md-6 col-xl-4">
-            <div className="card recommendation-card shadow-sm h-100">
-              <img className="card-img-top" src="https://images.unsplash.com/photo-1569396116180-210c18aa4a9b?q=80&w=1200&auto=format&fit=crop" alt="Fairy Meadows" />
-              <div className="card-body">
-                <h6 className="fw-bold mb-1">Fairy Meadows</h6>
-                <div className="text-muted small mb-2"><FiGrid className="me-1" />Diamer District, Gilgit-Baltistan</div>
-                <p className="mb-0 text-muted">A picturesque grassland facing Nanga Parbat, offering unparalleled views and a base camp for trekkers.</p>
+        {loadingRecommendations ? (
+          <div className="row g-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="col-12 col-md-6 col-xl-4">
+                <div className="card recommendation-card shadow-sm h-100">
+                  <div className="recommendation-cover skeleton-image"></div>
+                  <div className="card-body">
+                    <div className="skeleton-text mb-2" style={{ width: '70%', height: '16px' }}></div>
+                    <div className="skeleton-text mb-2" style={{ width: '50%', height: '14px' }}></div>
+                    <div className="skeleton-text" style={{ width: '90%', height: '14px' }}></div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
-          <div className="col-12 col-md-6 col-xl-4">
-            <div className="card recommendation-card shadow-sm h-100">
-              <img className="card-img-top" src="https://images.unsplash.com/photo-1620419930304-6b12b8d3f5a1?q=80&w=1200&auto=format&fit=crop" alt="Mohenjo-Daro" />
-              <div className="card-body">
-                <h6 className="fw-bold mb-1">Mohenjo-Daro</h6>
-                <div className="text-muted small mb-2"><FiGrid className="me-1" />Sindh</div>
-                <p className="mb-0 text-muted">Ancient city ruins from the Indus Valley Civilization, a UNESCO World Heritage Site.</p>
+        ) : recommendations.length > 0 ? (
+          <div className="row g-3">
+            {recommendations.slice(0, 10).map((place) => (
+              <div key={place._id} className="col-12 col-md-6 col-xl-4">
+                <div className="card recommendation-card shadow-sm h-100">
+                  <div className="recommendation-cover"></div>
+                  <div className="card-body">
+                    <h6 className="fw-bold mb-2">{place?.name || 'Unnamed place'}</h6>
+
+                    <div className="d-flex flex-wrap gap-2 text-muted small mb-2">
+                      <span><FiGrid className="me-1" />{formatDistance(place?.distanceMeters)}</span>
+                      <span><FiBookmark className="me-1" />Estimated cost: {formatEstimatedCost(place)}</span>
+                      <span><FiStar className="me-1" />Rating: {typeof place?.rating === 'number' ? place.rating : 0}</span>
+                    </div>
+
+                    <p className="mb-0 text-muted small">{recommendationsReason}</p>
+
+                    <div className="d-flex gap-2 mt-3">
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-primary"
+                        onClick={() => handleToggleSave(place._id)}
+                        disabled={!!placeActionLoading[place._id]}
+                      >
+                        Save
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-outline-secondary"
+                        onClick={() => handleMarkVisited(place._id)}
+                        disabled={!!placeActionLoading[place._id]}
+                      >
+                        Mark visited
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
-            </div>
+            ))}
           </div>
-          <div className="col-12 col-md-6 col-xl-4">
-            <div className="card recommendation-card shadow-sm h-100">
-              <img className="card-img-top" src="https://images.unsplash.com/photo-1546410531-bb4caa6b424d?q=80&w=1200&auto=format&fit=crop" alt="Saif-ul-Malook Lake" />
-              <div className="card-body">
-                <h6 className="fw-bold mb-1">Saif-ul-Malook Lake</h6>
-                <div className="text-muted small mb-2"><FiGrid className="me-1" />Naran, Khyber Pakhtunkhwa</div>
-                <p className="mb-0 text-muted">A stunning alpine lake at 3,224 meters, surrounded by towering mountains and folklore.</p>
-              </div>
-            </div>
+        ) : (
+          <div className="text-center py-4 text-muted">
+            <p className="mb-0">No recommendations found</p>
+            <small>Try updating your interests in Settings.</small>
           </div>
-        </div>
+        )}
+
         <div className="text-center my-4">
           <Link to="/recommendations" className="btn btn-discover px-4 py-2">Discover More Destinations</Link>
         </div>

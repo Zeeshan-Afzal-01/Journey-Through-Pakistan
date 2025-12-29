@@ -18,7 +18,29 @@ GOOGLE_VISION_API_KEY=your_vision_api_key_here
 
 # Google Places API Key (for verifying and finding nearby places)
 GOOGLE_PLACES_API_KEY=your_places_api_key_here
+
+# TextRazor API Key (for automatic topic/hashtag extraction from posts)
+TEXTRAZOR_API_KEY=your_textrazor_api_key_here
 ```
+
+## TextRazor API Setup
+
+TextRazor is used to automatically extract topics from community posts and add them as hashtags.
+
+### How to Get TextRazor API Key
+
+1. Go to [TextRazor](https://www.textrazor.com/)
+2. Sign up for a free account
+3. Navigate to your dashboard
+4. Copy your API key from the dashboard
+5. Add it to your `.env` file as `TEXTRAZOR_API_KEY`
+
+### How It Works
+
+- When a user creates a post with text, the text is automatically sent to TextRazor API
+- TextRazor extracts 1-2 topics with score 1 from the text
+- These topics are automatically added as hashtags at the end of the post on a new line
+- Example: If the post mentions "Minar-e-Pakistan", it will automatically add `#MinarePakistan` at the end
 
 ### Location of .env File
 - **Path**: `Server/.env`

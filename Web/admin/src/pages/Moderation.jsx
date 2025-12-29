@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { FiTrash2, FiCopy, FiCheck, FiX, FiAlertCircle, FiUser, FiClock, FiFileText, FiFlag, FiInfo, FiExternalLink } from 'react-icons/fi';
 import { SkeletonKPICard, SkeletonTable, SkeletonFilters } from '../components/SkeletonLoader';
 import { getReports, getReportStats, handleReport as handleReportAction, getUserById } from '../api/adminApi';
+import { getProfilePictureUrl } from '../utils/imageUtils';
 import Toast from '../components/Toast';
 import './Moderation.css';
 
@@ -19,15 +20,104 @@ const Moderation = () => {
   const [handling, setHandling] = useState(false);
   const [viewUserModal, setViewUserModal] = useState(false);
   const [viewingUser, setViewingUser] = useState(null);
+  const [adminRole, setAdminRole] = useState(null);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessError, setAccessError] = useState(null);
+
+  // Check admin permissions (Supervisor or above required)
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        // Get from localStorage first
+        const cachedUser = localStorage.getItem('adminUser');
+        if (cachedUser) {
+          try {
+            const user = JSON.parse(cachedUser);
+            if (user.adminRole) {
+              setAdminRole(user.adminRole);
+              // Supervisor or above (CEO, Supervisor) have access
+              if (user.adminRole === 'ceo' || user.adminRole === 'supervisor') {
+                setHasAccess(true);
+                setAccessError(null);
+              } else {
+                setHasAccess(false);
+                setAccessError('Access Denied. Supervisor or above access required.');
+              }
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+
+        // Fetch from server
+        try {
+          const { getAdminPermissions } = await import('../api/adminApi');
+          const response = await getAdminPermissions();
+          if (response.data) {
+            const role = response.data.adminRole;
+            setAdminRole(role);
+            
+            // Supervisor or above (CEO, Supervisor) have access
+            if (role === 'ceo' || role === 'supervisor') {
+              setHasAccess(true);
+              setAccessError(null);
+            } else {
+              setHasAccess(false);
+              setAccessError('Access Denied. Supervisor or above access required.');
+            }
+          }
+        } catch (permError) {
+          // Fallback: Check from admin profile
+          try {
+            const { getAdminProfile } = await import('../api/adminApi');
+            const profileResponse = await getAdminProfile();
+            if (profileResponse.data) {
+              const role = profileResponse.data.adminRole;
+              setAdminRole(role);
+              if (role === 'ceo' || role === 'supervisor') {
+                setHasAccess(true);
+                setAccessError(null);
+              } else {
+                setHasAccess(false);
+                setAccessError('Access Denied. Supervisor or above access required.');
+              }
+            }
+          } catch (profileError) {
+            console.error('Error fetching admin profile:', profileError);
+            setHasAccess(false);
+            setAccessError('Unable to verify access permissions.');
+          }
+        }
+      } catch (err) {
+        console.error('Error in checkAccess:', err);
+        setHasAccess(false);
+        setAccessError('Unable to verify access permissions.');
+      }
+    };
+
+    checkAccess();
+  }, []);
 
   useEffect(() => {
-    fetchReports();
-    fetchStats();
-  }, [selectedStatus, selectedContentType]);
+    // Only fetch if user has access
+    if (hasAccess) {
+      fetchReports();
+      fetchStats();
+    } else {
+      setLoading(false);
+    }
+  }, [selectedStatus, selectedContentType, hasAccess]);
 
   const fetchReports = async () => {
+    // Don't fetch if user doesn't have access
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      setAccessError(null);
       const params = {};
       if (selectedStatus !== 'All') params.status = selectedStatus;
       if (selectedContentType !== 'All') params.contentType = selectedContentType;
@@ -35,18 +125,33 @@ const Moderation = () => {
       setReports(response.data || []);
     } catch (error) {
       console.error('Error fetching reports:', error);
-      showToast('Failed to fetch reports', 'error');
+      if (error.response?.status === 403) {
+        setHasAccess(false);
+        setAccessError(error.response?.data?.message || 'Access Denied. Supervisor or above access required.');
+        showToast('Access Denied. Supervisor or above access required.', 'error');
+      } else {
+        showToast('Failed to fetch reports', 'error');
+      }
     } finally {
       setLoading(false);
     }
   };
 
   const fetchStats = async () => {
+    // Don't fetch if user doesn't have access
+    if (!hasAccess) {
+      return;
+    }
+
     try {
       const response = await getReportStats();
       setStats(response.data || { total: 0, pending: 0, resolved: 0, resolvedLast7Days: 0 });
     } catch (error) {
       console.error('Error fetching stats:', error);
+      if (error.response?.status === 403) {
+        setHasAccess(false);
+        setAccessError(error.response?.data?.message || 'Access Denied. Supervisor or above access required.');
+      }
     }
   };
 
@@ -113,6 +218,43 @@ const Moderation = () => {
     navigate(`/users?userId=${userId}`);
   };
 
+  // Show access denied message if user doesn't have access
+  if (!hasAccess && !loading) {
+    return (
+      <div className="moderation-page">
+        <div className="access-denied-container" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          minHeight: '400px'
+        }}>
+          <FiAlertCircle size={64} style={{ color: '#ef4444', marginBottom: '1rem' }} />
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1f2937' }}>
+            Access Denied
+          </h2>
+          <p style={{ fontSize: '1rem', color: '#6b7280', maxWidth: '500px', marginBottom: '1rem' }}>
+            {accessError || 'You do not have permission to access moderation. Supervisor or above access is required.'}
+          </p>
+          {adminRole && (
+            <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+              Your current role: <strong style={{ textTransform: 'uppercase' }}>{adminRole}</strong>
+            </p>
+          )}
+        </div>
+        {toast.show && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast({ show: false, message: '', type: 'success' })}
+          />
+        )}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="main-content">
@@ -132,7 +274,8 @@ const Moderation = () => {
   return (
     <div className="moderation-page">
       {/* Statistics Cards */}
-      <div className="moderation-stats">
+      {hasAccess && (
+        <div className="moderation-stats">
         <div className="stat-card">
           <div className="stat-card-header">
             <span className="stat-card-title">Total Reports</span>
@@ -157,9 +300,11 @@ const Moderation = () => {
           <div className="stat-card-subtitle">Content items resolved</div>
         </div>
       </div>
+      )}
 
       {/* Filter and Batch Actions */}
-      <div className="moderation-controls">
+      {hasAccess && (
+        <div className="moderation-controls">
         <div className="filter-group">
           <label htmlFor="status-filter">Filter Status:</label>
           <select
@@ -188,9 +333,11 @@ const Moderation = () => {
           </select>
         </div>
       </div>
+      )}
 
       {/* Table */}
-      <div className="moderation-table-container">
+      {hasAccess && (
+        <div className="moderation-table-container">
         <table className="moderation-data-table">
           <thead>
             <tr>
@@ -264,7 +411,8 @@ const Moderation = () => {
             )}
           </tbody>
         </table>
-      </div>
+        </div>
+      )}
 
       {/* Moderating Report Modal */}
       {selectedReport && (
@@ -499,17 +647,19 @@ const Moderation = () => {
               <div className="modal-section">
                 <div className="user-profile-info">
                   <div className="user-profile-avatar">
-                    {viewingUser.hasProfilePicture && viewingUser.profilePicture ? (
-                      <img 
-                        src={`http://localhost:3000/${viewingUser.profilePicture}`} 
-                        alt={viewingUser.name}
-                        className="profile-img"
-                      />
-                    ) : (
-                      <div className="profile-img-placeholder">
+                    <img 
+                      src={getProfilePictureUrl(viewingUser.profilePicture, viewingUser.hasProfilePicture)} 
+                      alt={viewingUser.name}
+                      className="profile-img"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const placeholder = e.target.nextElementSibling;
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                    <div className="profile-img-placeholder" style={{ display: 'none' }}>
                         <FiUser size={48} />
                       </div>
-                    )}
                   </div>
                   <div className="user-profile-details">
                     <h3>{viewingUser.name || 'Unknown'}</h3>

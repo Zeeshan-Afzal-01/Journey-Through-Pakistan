@@ -15,6 +15,7 @@ import {
 import { getAllUsers, deleteUser, updateUser, getUserById, getAdminPermissions, updateUserAdminRole } from '../api/adminApi';
 import UserModal from '../components/UserModal';
 import { SkeletonPageHeader, SkeletonFilters, SkeletonTable } from '../components/SkeletonLoader';
+import { getProfilePictureUrl } from '../utils/imageUtils';
 import './ManageUsers.css';
 
 const ManageUsers = () => {
@@ -832,26 +833,18 @@ const ManageUsers = () => {
                 </td>
                 <td>
                   <div className="avatar-circle">
-                    {user.profilePicture ? (
-                      <>
-                        <img 
-                          src={`http://localhost:3000/${user.profilePicture}`} 
-                          alt={user.name || 'User'}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                            const span = e.target.nextElementSibling;
-                            if (span) span.style.display = 'flex';
-                          }}
-                        />
-                        <span style={{ display: 'none' }}>
-                          {getInitials(user.name)}
-                        </span>
-                      </>
-                    ) : (
-                      <span>
-                        {getInitials(user.name)}
-                      </span>
-                    )}
+                    <img 
+                      src={getProfilePictureUrl(user.profilePicture, user.hasProfilePicture)} 
+                      alt={user.name || 'User'}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        const span = e.target.nextElementSibling;
+                        if (span) span.style.display = 'flex';
+                      }}
+                    />
+                    <span style={{ display: 'none' }}>
+                      {getInitials(user.name)}
+                    </span>
                   </div>
                 </td>
                   <td className="name-cell">{user.name || 'N/A'}</td>
@@ -1043,24 +1036,18 @@ const ManageUsers = () => {
             </div>
             <div className="user-details-content">
               <div className="user-details-avatar">
-                {userDetails.profilePicture ? (
-                  <>
-                    <img 
-                      src={`http://localhost:3000/${userDetails.profilePicture}`} 
-                      alt={userDetails.name || 'User'}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        const span = e.target.nextElementSibling;
-                        if (span) span.style.display = 'flex';
-                      }}
-                    />
-                    <span style={{ display: 'none' }}>
-                      {getInitials(userDetails.name)}
-                    </span>
-                  </>
-                ) : (
-                  <span>{getInitials(userDetails.name)}</span>
-                )}
+                <img 
+                  src={getProfilePictureUrl(userDetails.profilePicture, userDetails.hasProfilePicture)} 
+                  alt={userDetails.name || 'User'}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    const span = e.target.nextElementSibling;
+                    if (span) span.style.display = 'flex';
+                  }}
+                />
+                <span style={{ display: 'none' }}>
+                  {getInitials(userDetails.name)}
+                </span>
               </div>
               <div className="user-details-info">
                 <div className="detail-row">

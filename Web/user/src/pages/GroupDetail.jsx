@@ -5,6 +5,7 @@ import { createPost, toggleLike, addComment, updatePost, deletePost } from '../a
 import { useAuth } from '../context/AuthContext.jsx';
 import { searchUsers } from '../api/authApi.jsx';
 import { FiUsers, FiLock, FiGlobe, FiSettings, FiPlus, FiX, FiHeart, FiMessageSquare, FiShare2, FiBookmark, FiMapPin, FiTag, FiCamera, FiEdit2, FiTrash2, FiCheck, FiXCircle, FiMoreHorizontal } from 'react-icons/fi';
+import { getProfilePictureUrl, getImageUrl } from '../utils/imageUtils.js';
 import '../assests/css/group-detail.css';
 import '../assests/css/community.css';
 import { GroupDetailSkeleton, PostCardSkeleton } from '../components/SkeletonLoader.jsx';
@@ -233,7 +234,7 @@ export default function GroupDetail() {
           className="group-cover" 
           style={{
             backgroundImage: group.coverImage 
-              ? `url(http://localhost:3000/${group.coverImage})` 
+              ? `url(${getImageUrl(group.coverImage)})` 
               : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
             backgroundSize: 'cover',
             backgroundPosition: 'center'
@@ -259,7 +260,7 @@ export default function GroupDetail() {
               <div className="group-avatar-large position-relative">
                 {group.groupPhoto ? (
                   <img 
-                    src={`http://localhost:3000/${group.groupPhoto}`} 
+                    src={getImageUrl(group.groupPhoto)} 
                     alt={group.name}
                     className="rounded"
                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -368,17 +369,12 @@ export default function GroupDetail() {
                           onClick={() => navigate(`/profile?userId=${memberId}`)}
                           style={{ cursor: 'pointer' }}
                         >
-                          {member?.hasProfilePicture && member?.profilePicture ? (
-                            <img 
-                              src={`http://localhost:3000/${member.profilePicture}`} 
-                              alt={member?.name || 'Member'}
-                              className="rounded-circle"
-                            />
-                          ) : (
-                            <div className="member-avatar-placeholder">
-                              {(member?.name || 'M')[0].toUpperCase()}
-                            </div>
-                          )}
+                          <img 
+                            src={getProfilePictureUrl(member?.profilePicture, member?.hasProfilePicture)} 
+                            alt={member?.name || 'Member'}
+                            className="rounded-circle"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
                         </div>
                       );
                     })}
@@ -404,7 +400,7 @@ export default function GroupDetail() {
                   <div className="d-flex align-items-center gap-2 mb-3">
                     <img 
                       className="rounded-circle" 
-                      src={user?.hasProfilePicture && user?.profilePicture ? `http://localhost:3000/${user.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
+                      src={getProfilePictureUrl(user?.profilePicture, user?.hasProfilePicture)} 
                       alt={user?.name}
                       style={{ width: 40, height: 40 }}
                     />
@@ -587,7 +583,7 @@ function GroupPreviewModal({ group, user, onClose, onJoinRequest, isJoining }) {
               style={{
                 height: '200px',
                 backgroundImage: group.coverImage 
-                  ? `url(http://localhost:3000/${group.coverImage})` 
+                  ? `url(${getImageUrl(group.coverImage)})` 
                   : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
@@ -601,7 +597,7 @@ function GroupPreviewModal({ group, user, onClose, onJoinRequest, isJoining }) {
                   >
                     {group.groupPhoto ? (
                       <img 
-                        src={`http://localhost:3000/${group.groupPhoto}`} 
+                        src={getImageUrl(group.groupPhoto)} 
                         alt={group.name}
                         className="rounded"
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -913,7 +909,7 @@ function ManageGroupModal({ group, user, onClose, onGroupUpdate }) {
                         <div key={f._id} className="d-flex align-items-center justify-content-between border rounded p-2">
                           <div className="d-flex align-items-center gap-2">
                             <img 
-                              src={f.hasProfilePicture && f.profilePicture ? `http://localhost:3000/${f.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
+                              src={getProfilePictureUrl(f.profilePicture, f.hasProfilePicture)} 
                               className="rounded-circle"
                               style={{ width: 32, height: 32 }}
                             />
@@ -944,9 +940,9 @@ function ManageGroupModal({ group, user, onClose, onGroupUpdate }) {
                         <div key={member._id || member} className="d-flex align-items-center justify-content-between border rounded p-2">
                           <div className="d-flex align-items-center gap-2">
                             <img 
-                              src={member.hasProfilePicture && member.profilePicture ? `http://localhost:3000/${member.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
+                              src={getProfilePictureUrl(member.profilePicture, member.hasProfilePicture)} 
                               className="rounded-circle"
-                              style={{ width: 32, height: 32, cursor: 'pointer' }}
+                              style={{ width: 32, height: 32, cursor: 'pointer', objectFit: 'cover' }}
                               onClick={() => navigate(`/profile?userId=${member._id || member}`)}
                             />
                             <div>
@@ -988,7 +984,7 @@ function ManageGroupModal({ group, user, onClose, onGroupUpdate }) {
                       <div key={requester._id || requester} className="d-flex align-items-center justify-content-between border rounded p-3">
                         <div className="d-flex align-items-center gap-2">
                           <img 
-                            src={requester.hasProfilePicture && requester.profilePicture ? `http://localhost:3000/${requester.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
+                            src={getProfilePictureUrl(requester.profilePicture, requester.hasProfilePicture)} 
                             className="rounded-circle"
                             style={{ width: 40, height: 40 }}
                           />
@@ -1123,7 +1119,7 @@ function GroupPostCard({ post, onToggleLike, onAddComment, onPostUpdate, onPostD
         <div className="d-flex align-items-center gap-2 mb-2 position-relative">
           <img 
             className="rounded-circle comm-avatar" 
-            src={post.author?.hasProfilePicture && post.author?.profilePicture ? `http://localhost:3000/${post.author.profilePicture}` : "https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png"} 
+            src={getProfilePictureUrl(post.author?.profilePicture, post.author?.hasProfilePicture)} 
             alt={post.author?.name || "User"}
             style={{ width: 40, height: 40, objectFit: 'cover' }}
           />
@@ -1399,7 +1395,7 @@ function GroupCommentThread({ comments, onReply, replyingId, replyText, onReplyT
           <div className="d-flex align-items-start gap-2">
             <img 
               className="rounded-circle" 
-              src={c.author?.hasProfilePicture && c.author?.profilePicture ? `http://localhost:3000/${c.author.profilePicture}` : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'} 
+              src={getProfilePictureUrl(c.author?.profilePicture, c.author?.hasProfilePicture)} 
               alt={c.author?.name || 'User'} 
               style={{ width: 28, height: 28, objectFit: 'cover' }} 
             />

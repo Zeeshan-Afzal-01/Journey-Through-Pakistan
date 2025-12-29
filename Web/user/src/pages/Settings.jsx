@@ -10,6 +10,15 @@ export default function Settings() {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+
+  const INTEREST_OPTIONS = [
+    { value: 'history', label: 'History' },
+    { value: 'nature', label: 'Nature' },
+    { value: 'culture', label: 'Culture' },
+    { value: 'food', label: 'Food' },
+    { value: 'adventure', label: 'Adventure' }
+  ];
+
   const [formData, setFormData] = useState({
     name: '',
     email: ''
@@ -24,6 +33,7 @@ export default function Settings() {
 
   const [dataSharing, setDataSharing] = useState('ask');
   const [isProfilePrivate, setIsProfilePrivate] = useState(false);
+  const [interests, setInterests] = useState([]);
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
   const [show2FAModal, setShow2FAModal] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -46,6 +56,8 @@ export default function Settings() {
         name: user.name || '',
         email: user.email || ''
       });
+
+      setInterests(Array.isArray(user.interests) ? user.interests : []);
 
       // Load saved notification preferences from localStorage
       const savedNotifications = localStorage.getItem('notificationPreferences');
@@ -76,6 +88,8 @@ export default function Settings() {
     }
   }, [user]);
 
+  const extractUserFromResponse = (res) => res?.data?.user || res?.data?.updatedUser || res?.data;
+
   const handleInputChange = (e) => {
     setFormData({
       ...formData,
@@ -104,7 +118,7 @@ export default function Settings() {
       });
       
       if (res.data) {
-        setUser(res.data.updatedUser || res.data);
+        setUser(extractUserFromResponse(res));
         toast.success('Profile updated successfully!');
       }
     } catch (error) {
@@ -131,12 +145,36 @@ export default function Settings() {
       
       if (res.data) {
         setIsProfilePrivate(newPrivacyValue);
-        setUser(res.data.user || res.data);
+        setUser(extractUserFromResponse(res));
         toast.success(`Profile is now ${newPrivacyValue ? 'private' : 'public'}`);
       }
     } catch (error) {
       console.error('Error updating privacy setting:', error);
       toast.error(error.response?.data?.message || 'Failed to update privacy setting');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleInterest = (value) => {
+    setInterests((prev) => {
+      const normalized = String(value).toLowerCase();
+      if (prev.includes(normalized)) return prev.filter((i) => i !== normalized);
+      return [...prev, normalized];
+    });
+  };
+
+  const handleUpdateInterests = async () => {
+    setLoading(true);
+    try {
+      const res = await updateMe({ interests });
+      if (res.data) {
+        setUser(extractUserFromResponse(res));
+        toast.success('Interests updated successfully!');
+      }
+    } catch (error) {
+      console.error('Error updating interests:', error);
+      toast.error(error.response?.data?.message || 'Failed to update interests');
     } finally {
       setLoading(false);
     }
@@ -286,6 +324,38 @@ export default function Settings() {
               {loading ? 'Updating...' : 'Update Profile'}
             </button>
           </form>
+        </section>
+
+        {/* Personalization Section */}
+        <section className="settings-section">
+          <h2 className="section-title">Personalization</h2>
+          <p className="section-description">Select your interests to get better travel recommendations.</p>
+
+          <div className="checkbox-grid" role="group" aria-label="Interests">
+            {INTEREST_OPTIONS.map((opt) => (
+              <label
+                key={opt.value}
+                className={`checkbox-option ${interests.includes(opt.value) ? 'checked' : ''}`}
+              >
+                <input
+                  type="checkbox"
+                  checked={interests.includes(opt.value)}
+                  onChange={() => toggleInterest(opt.value)}
+                  disabled={loading}
+                />
+                <span className="checkbox-label">{opt.label}</span>
+              </label>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={handleUpdateInterests}
+            disabled={loading}
+          >
+            {loading ? 'Saving...' : 'Save Interests'}
+          </button>
         </section>
 
         {/* Notification Preferences Section */}

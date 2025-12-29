@@ -46,6 +46,10 @@ const Settings = () => {
   const [uploadFile, setUploadFile] = useState(null);
   const [showRestoreConfirm, setShowRestoreConfirm] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(null);
+  const [adminRole, setAdminRole] = useState(null);
+  const [adminPermissions, setAdminPermissions] = useState([]);
+  const [hasAccess, setHasAccess] = useState(false);
+  const [accessError, setAccessError] = useState(null);
   const { success, error, warning, info, toasts, removeToast } = useToast();
 
   // All settings in one state
@@ -109,6 +113,7 @@ const Settings = () => {
     googleApiKey: '',
     googleVisionApiKey: '',
     googlePlacesApiKey: '',
+    textRazorApiKey: '',
     
     // System
     maintenanceMode: false,
@@ -125,6 +130,83 @@ const Settings = () => {
     enableWebhooks: false,
     webhookUrl: '',
   });
+
+  // Fetch admin permissions and role
+  useEffect(() => {
+    const fetchAdminPermissions = async () => {
+      try {
+        // Get from localStorage first
+        const cachedUser = localStorage.getItem('adminUser');
+        if (cachedUser) {
+          try {
+            const user = JSON.parse(cachedUser);
+            if (user.adminRole) {
+              setAdminRole(user.adminRole);
+              // Check if user has CEO role or manage_settings permission
+              if (user.adminRole === 'ceo') {
+                setHasAccess(true);
+                setAdminPermissions(['view_users', 'create_users', 'edit_users', 'delete_users', 'view_posts', 'delete_posts', 'moderate_posts', 'view_analytics', 'export_data', 'manage_settings', 'manage_admins']);
+              } else {
+                setHasAccess(false);
+                setAccessError('Access Denied. CEO access required to manage settings.');
+              }
+            }
+          } catch (e) {
+            // Ignore localStorage errors
+          }
+        }
+
+        // Fetch from server
+        try {
+          const { getAdminPermissions } = await import('../api/adminApi');
+          const response = await getAdminPermissions();
+          if (response.data) {
+            const role = response.data.adminRole;
+            const permissions = response.data.permissions || [];
+            setAdminRole(role);
+            setAdminPermissions(permissions);
+            
+            // Check if user has access (CEO role or manage_settings permission)
+            if (role === 'ceo' || permissions.includes('manage_settings')) {
+              setHasAccess(true);
+              setAccessError(null);
+            } else {
+              setHasAccess(false);
+              setAccessError('Access Denied. CEO access required to manage settings.');
+            }
+          }
+        } catch (permError) {
+          console.error('Error fetching permissions:', permError);
+          // Fallback: Check from admin profile
+          try {
+            const { getAdminProfile } = await import('../api/adminApi');
+            const profileResponse = await getAdminProfile();
+            if (profileResponse.data) {
+              const role = profileResponse.data.adminRole;
+              setAdminRole(role);
+              if (role === 'ceo') {
+                setHasAccess(true);
+                setAccessError(null);
+              } else {
+                setHasAccess(false);
+                setAccessError('Access Denied. CEO access required to manage settings.');
+              }
+            }
+          } catch (profileError) {
+            console.error('Error fetching admin profile:', profileError);
+            setHasAccess(false);
+            setAccessError('Unable to verify access permissions.');
+          }
+        }
+      } catch (err) {
+        console.error('Error in fetchAdminPermissions:', err);
+        setHasAccess(false);
+        setAccessError('Unable to verify access permissions.');
+      }
+    };
+
+    fetchAdminPermissions();
+  }, []);
 
   // Set initial URL param if missing
   useEffect(() => {
@@ -143,15 +225,27 @@ const Settings = () => {
   }, [searchParams]);
 
   useEffect(() => {
-    fetchSettings();
-    if (activeSection === 'backup') {
-      fetchBackups();
+    // Only fetch settings if user has access
+    if (hasAccess) {
+      fetchSettings();
+      if (activeSection === 'backup') {
+        fetchBackups();
+      }
+    } else {
+      setLoading(false);
     }
-  }, [activeSection]);
+  }, [activeSection, hasAccess]);
 
   const fetchSettings = async () => {
+    // Don't fetch if user doesn't have access
+    if (!hasAccess) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      setAccessError(null);
       const response = await getSettings();
       if (response.data) {
         // Ensure all required fields have defaults
@@ -165,7 +259,13 @@ const Settings = () => {
       }
     } catch (err) {
       console.error('Error fetching settings:', err);
-      error('Failed to load settings. Please try again.');
+      if (err.response?.status === 403) {
+        setHasAccess(false);
+        setAccessError(err.response?.data?.message || 'Access Denied. CEO access required.');
+        error('Access Denied. CEO access required to manage settings.');
+      } else {
+        error('Failed to load settings. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -417,6 +517,34 @@ const Settings = () => {
   };
 
   const renderSectionContent = () => {
+    // Show access denied message if user doesn't have access
+    if (!hasAccess && !loading) {
+      return (
+        <div className="access-denied-container" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4rem 2rem',
+          textAlign: 'center',
+          minHeight: '400px'
+        }}>
+          <FiAlertCircle size={64} style={{ color: '#ef4444', marginBottom: '1rem' }} />
+          <h2 style={{ fontSize: '1.5rem', fontWeight: '600', marginBottom: '0.5rem', color: '#1f2937' }}>
+            Access Denied
+          </h2>
+          <p style={{ fontSize: '1rem', color: '#6b7280', maxWidth: '500px', marginBottom: '1rem' }}>
+            {accessError || 'You do not have permission to access settings. CEO access is required to manage application settings.'}
+          </p>
+          {adminRole && (
+            <p style={{ fontSize: '0.875rem', color: '#9ca3af', marginTop: '0.5rem' }}>
+              Your current role: <strong style={{ textTransform: 'uppercase' }}>{adminRole}</strong>
+            </p>
+          )}
+        </div>
+      );
+    }
+
     if (loading) {
       return <SkeletonSettings />;
     }
@@ -488,14 +616,16 @@ const Settings = () => {
               </>
             )}
           </div>
-          <button 
-            className="settings-save-btn"
-            onClick={handleSave}
-            disabled={saving}
-          >
-            <FiSave className="save-btn-icon" />
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          {hasAccess && (
+            <button 
+              className="settings-save-btn"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              <FiSave className="save-btn-icon" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </button>
+          )}
           </div>
         </div>
         
@@ -1181,6 +1311,29 @@ const APISection = ({ settings, onChange, showPasswords, togglePassword }) => (
           </button>
         </div>
         <small className="settings-hint">Google Places API key for location verification. Optional - falls back to general key if not set.</small>
+      </div>
+      <div className="settings-form-group">
+        <label className="settings-label">
+          <FiKey className="settings-label-icon" />
+          TextRazor API Key
+        </label>
+        <div className="settings-input-wrapper">
+          <input
+            type={showPasswords.textRazorApiKey ? "text" : "password"}
+            value={settings.textRazorApiKey || ''}
+            onChange={(e) => onChange('textRazorApiKey', e.target.value)}
+            className="settings-input"
+            placeholder="Enter TextRazor API key or leave masked to keep current"
+          />
+          <button
+            type="button"
+            className="settings-toggle-password"
+            onClick={() => togglePassword('textRazorApiKey')}
+          >
+            {showPasswords.textRazorApiKey ? <FiEyeOff /> : <FiEye />}
+          </button>
+        </div>
+        <small className="settings-hint">TextRazor API key for automatic topic/hashtag extraction from posts. Get your key from <a href="https://www.textrazor.com/" target="_blank" rel="noopener noreferrer">textrazor.com</a></small>
       </div>
     </div>
 

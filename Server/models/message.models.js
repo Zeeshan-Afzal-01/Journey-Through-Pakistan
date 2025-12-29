@@ -30,6 +30,41 @@ const messageSchema = new mongoose.Schema(
     },
     readAt: {
       type: Date
+    },
+    edited: {
+      type: Boolean,
+      default: false
+    },
+    editedAt: {
+      type: Date
+    },
+    deleted: {
+      type: Boolean,
+      default: false
+    },
+    deletedAt: {
+      type: Date
+    },
+    deletedForSender: {
+      type: Boolean,
+      default: false
+    },
+    deletedForSenderAt: {
+      type: Date
+    },
+    deletedForRecipient: {
+      type: Boolean,
+      default: false
+    },
+    deletedForRecipientAt: {
+      type: Date
+    },
+    unsent: {
+      type: Boolean,
+      default: false
+    },
+    unsentAt: {
+      type: Date
     }
   },
   {

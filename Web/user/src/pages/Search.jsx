@@ -161,9 +161,7 @@ export default function Search() {
                           className="rounded-circle" 
                           style={{ width: 40, height: 40, objectFit: 'cover', cursor: 'pointer' }}  
                           src={
-                            u.hasProfilePicture && u.profilePicture 
-                              ? `http://localhost:3000/${u.profilePicture}` 
-                              : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                            getProfilePictureUrl(u.profilePicture, u.hasProfilePicture)
                           }
                           onClick={() => navigate(`/profile?userId=${u._id}`)}
                         />
@@ -199,9 +197,7 @@ export default function Search() {
                             className="rounded-circle" 
                             style={{ width: 28, height: 28, objectFit: 'cover', cursor: 'pointer' }} 
                             src={
-                              p.author?.hasProfilePicture && p.author?.profilePicture 
-                                ? `http://localhost:3000/${p.author.profilePicture}` 
-                                : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                              getProfilePictureUrl(p.author?.profilePicture, p.author?.hasProfilePicture)
                             }
                             onClick={() => navigate(`/profile?userId=${p.author?._id || p.author}`)}
                           />
@@ -216,7 +212,7 @@ export default function Search() {
                         <div className="small mb-1">{p.text}</div>
                         {p.imageUrl && (
                           <Link to={`/community/post/${p._id}`}>
-                            <img style={{ maxWidth: '100%', height: 'auto' }} src={p.imageUrl.startsWith('http') ? p.imageUrl : `http://localhost:3000/${p.imageUrl}`} />
+                            <img style={{ maxWidth: '100%', height: 'auto' }} src={getImageUrl(p.imageUrl)} />
                           </Link>
                         )}
                       </div>

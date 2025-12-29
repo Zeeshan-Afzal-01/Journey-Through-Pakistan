@@ -10,10 +10,16 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Helper function to check if profile picture file exists
+// Helper function to check if profile picture exists
+// Now supports both Cloudinary URLs and local file paths
 const checkProfilePictureExists = (profilePicturePath) => {
   if (!profilePicturePath) return false;
   try {
+    // If it's a Cloudinary URL (starts with http/https), consider it valid
+    if (profilePicturePath.startsWith('http://') || profilePicturePath.startsWith('https://')) {
+      return true;
+    }
+    // Otherwise, check if local file exists (for backward compatibility)
     const fullPath = path.join(__dirname, "..", profilePicturePath);
     return fs.existsSync(fullPath);
   } catch (error) {
@@ -29,7 +35,7 @@ function extractHashtags(text) {
 export const createPost = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const { text, imageUrl, place, feeling, privacy, group, taggedUsers } = req.body;
+    let { text, imageUrl, place, feeling, privacy, group, taggedUsers } = req.body;
  
    
 
@@ -37,12 +43,56 @@ export const createPost = async (req, res) => {
     // Accept either text or an image (like Facebook). Require at least one.
 
     let finalImageUrl = imageUrl;
-    if (req.file) {
-      finalImageUrl = `uploads/posts/${req.file.filename}`;
+    if (req.file && req.file.buffer) {
+      try {
+        const { uploadToCloudinary } = await import('../utils/cloudinary.js');
+        const isVideo = req.file.mimetype.startsWith('video/');
+        const resourceType = isVideo ? 'video' : 'image';
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'jtp/posts', resourceType);
+        finalImageUrl = uploadResult.url;
+      } catch (uploadError) {
+        console.error('Error uploading post media to Cloudinary:', uploadError);
+        return res.status(500).json({ message: "Error uploading media", error: uploadError.message });
+      }
     }
 
     if ((!text || text.trim().length === 0) && !finalImageUrl) {
       return res.status(400).json({ message: "Post must include text or an image" });
+    }
+
+    // Extract topics from text using TextRazor API and add as hashtags
+    if (text && text.trim().length > 0) {
+      try {
+        const { extractTopicsFromText } = await import('../utils/textRazor.js');
+        const topics = await extractTopicsFromText(text);
+        
+        if (topics && topics.length > 0) {
+          // Add topics as hashtags at the end of the text
+          // Remove spaces and special characters, keep only alphanumeric
+          const hashtags = topics.map(topic => {
+            // Remove spaces, hyphens, and special characters, keep only alphanumeric
+            // Example: "Minar-e-Pakistan" becomes "MinarePakistan"
+            const cleanLabel = topic.label.replace(/[^a-zA-Z0-9]/g, '');
+            return `#${cleanLabel}`;
+          });
+          
+          // Add hashtags on a new line at the end
+          const originalText = text.trim();
+          const hashtagsText = hashtags.join(' ');
+          
+          // Only add if not already present in the text
+          const hasAnyHashtag = hashtags.some(tag => originalText.includes(tag));
+          if (!hasAnyHashtag) {
+            text = `${originalText}\n${hashtagsText}`;
+            console.log('✅ Added auto-generated hashtags to post:', hashtags);
+          } else {
+            console.log('Hashtags already present in text, skipping auto-add');
+          }
+        }
+      } catch (error) {
+        console.error('Error extracting topics (non-fatal):', error.message);
+        // Continue with post creation even if topic extraction fails
+      }
     }
 
     // If posting to a group, verify user is a member
@@ -70,7 +120,7 @@ export const createPost = async (req, res) => {
       });
     }
 
-    // --- Hashtag extraction logic ---
+    // --- Hashtag extraction logic (includes auto-generated tags from TextRazor) ---
     const hashtags = extractHashtags(text || "");
 
 
