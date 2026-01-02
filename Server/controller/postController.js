@@ -36,6 +36,11 @@ export const createPost = async (req, res) => {
   try {
     const userId = req.user?.id;
     let { text, imageUrl, place, feeling, privacy, group, taggedUsers } = req.body;
+    // Fix: Parse taggedUsers if coming as JSON string from frontend
+    if (typeof taggedUsers === 'string') {
+      try { taggedUsers = JSON.parse(taggedUsers); } catch { taggedUsers = []; }
+    }
+
  
    
 
@@ -371,15 +376,18 @@ export const toggleSavePost = async (req, res) => {
     const isSaved = user.savedPosts && user.savedPosts.some(p => p.toString() === id);
     
     if (isSaved) {
-      // Unsave post
-      user.savedPosts = user.savedPosts.filter(p => p.toString() !== id);
-      await user.save();
+      // Unsave post - use updateOne to only update savedPosts field
+      await User.updateOne(
+        { _id: userId },
+        { $pull: { savedPosts: id } }
+      );
       res.json({ saved: false, message: "Post unsaved" });
     } else {
-      // Save post
-      user.savedPosts = user.savedPosts || [];
-      user.savedPosts.push(id);
-      await user.save();
+      // Save post - use updateOne to only update savedPosts field
+      await User.updateOne(
+        { _id: userId },
+        { $addToSet: { savedPosts: id } }
+      );
       res.json({ saved: true, message: "Post saved" });
     }
   } catch (err) {

@@ -526,6 +526,84 @@ export const getUnreadCount = async (req, res) => {
   }
 };
 
+// Delete a single conversation and all its messages
+export const deleteConversation = async (req, res) => {
+  try {
+    const { conversationId } = req.params;
+    const currentUserId = req.user.id;
+    
+    // Verify user is part of this conversation
+    const conversation = await Conversation.findById(conversationId);
+    if (!conversation) {
+      return res.status(404).json({ message: "Conversation not found" });
+    }
+    
+    // Check if user is a participant
+    const participantIds = conversation.participants.map(p => p.toString());
+    if (!participantIds.includes(currentUserId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+    
+    // Delete all messages in the conversation
+    await Message.deleteMany({ conversationId: conversationId });
+    
+    // Delete the conversation itself
+    await Conversation.findByIdAndDelete(conversationId);
+    
+    res.json({ message: "Conversation deleted successfully" });
+  } catch (error) {
+    console.error('Error deleting conversation:', error);
+    res.status(500).json({ message: "Error deleting conversation", error: error.message });
+  }
+};
+
+// Delete multiple conversations and their messages
+export const deleteMultipleConversations = async (req, res) => {
+  try {
+    const { conversationIds } = req.body;
+    const currentUserId = req.user.id;
+    
+    if (!Array.isArray(conversationIds) || conversationIds.length === 0) {
+      return res.status(400).json({ message: "Conversation IDs array is required" });
+    }
+    
+    // Find all conversations to verify user has access to them
+    const conversations = await Conversation.find({
+      _id: { $in: conversationIds }
+    });
+    
+    // Filter conversations that the user has access to
+    const accessibleConversations = conversations.filter(conv => {
+      const participantIds = conv.participants.map(p => p.toString());
+      return participantIds.includes(currentUserId);
+    });
+    
+    if (accessibleConversations.length === 0) {
+      return res.status(403).json({ message: "Access denied to all specified conversations" });
+    }
+    
+    const accessibleConversationIds = accessibleConversations.map(conv => conv._id);
+    
+    // Delete all messages in the accessible conversations
+    await Message.deleteMany({
+      conversationId: { $in: accessibleConversationIds }
+    });
+    
+    // Delete the conversations themselves
+    await Conversation.deleteMany({
+      _id: { $in: accessibleConversationIds }
+    });
+    
+    res.json({ 
+      message: "Conversations deleted successfully",
+      deletedCount: accessibleConversations.length
+    });
+  } catch (error) {
+    console.error('Error deleting multiple conversations:', error);
+    res.status(500).json({ message: "Error deleting conversations", error: error.message });
+  }
+};
+
 // Get chats with local connections (opposite role users)
 // If user is "local", show chats with "tourist" users
 // If user is "tourist", show chats with "local" users

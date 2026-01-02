@@ -73,7 +73,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-admin-panel']
 }));
 
 // Attach io to app for use in routes
@@ -220,16 +220,19 @@ io.on('connection', (socket) => {
       const recipientSockets = await io.in(`conversation_${conversation._id}`).fetchSockets();
       const recipientInRoom = recipientSockets.some(s => s.userId === recipientId);
 
-      // Only emit notification if recipient is NOT in the conversation room
+      // Only emit to recipient's personal room if they are NOT in the conversation room
+      // This prevents duplicate messages
+      if (!recipientInRoom) {
+        io.to(`user_${recipientId}`).emit('new-message', messageWithConversation);
+      }
+      
+      // Send notification if recipient is not in the conversation room
       if (!recipientInRoom) {
         io.to(`user_${recipientId}`).emit('new-message-notification', {
           message: messageWithConversation,
           conversationId: conversation._id.toString()
         });
       }
-      
-      // Always emit new-message to recipient's personal room (for real-time updates)
-      io.to(`user_${recipientId}`).emit('new-message', messageWithConversation);
 
       // Don't create notification for messages - only sound and unread badges
       // Messages are handled via Socket.IO real-time updates and unread badges
@@ -445,7 +448,80 @@ io.on('connection', (socket) => {
     });
   });
 
-  // Handle call signaling
+  // Handle call initiation
+  socket.on('initiate-call', async (data) => {
+    try {
+      const { callType, recipientId, conversationId } = data;
+      const caller = socket.user;
+
+      console.log(`📞 Call initiated: ${callType} from ${socket.userId} (${caller.name}) to ${recipientId}`);
+      console.log(`📞 Checking if recipient is online...`);
+      
+      const recipientInfo = onlineUsers.get(recipientId);
+      if (recipientInfo) {
+        console.log(`✅ Recipient ${recipientId} is online with socketId: ${recipientInfo.socketId}`);
+      } else {
+        console.log(`❌ Recipient ${recipientId} is NOT in onlineUsers map`);
+        console.log(`📝 Current online users:`, Array.from(onlineUsers.keys()));
+      }
+
+      // Emit incoming call to recipient
+      const callData = {
+        callType,
+        caller: {
+          _id: caller._id,
+          name: caller.name,
+          profilePicture: caller.profilePicture
+        },
+        conversationId
+      };
+      
+      console.log(`📤 Emitting 'incoming-call' to room: user_${recipientId}`);
+      console.log(`📝 Call data:`, JSON.stringify(callData, null, 2));
+      
+      io.to(`user_${recipientId}`).emit('incoming-call', callData);
+      
+      console.log(`✅ Call signal sent to recipient`);
+    } catch (error) {
+      console.error('❌ Error initiating call:', error);
+      socket.emit('call-error', { error: error.message });
+    }
+  });
+
+  // Handle call acceptance
+  socket.on('accept-call', (data) => {
+    const { recipientId, conversationId } = data;
+    console.log(`Call accepted by ${socket.userId}`);
+    
+    io.to(`user_${recipientId}`).emit('call-accepted', {
+      userId: socket.userId,
+      conversationId
+    });
+  });
+
+  // Handle call rejection
+  socket.on('reject-call', (data) => {
+    const { recipientId, conversationId } = data;
+    console.log(`Call rejected by ${socket.userId}`);
+    
+    io.to(`user_${recipientId}`).emit('call-rejected', {
+      userId: socket.userId,
+      conversationId
+    });
+  });
+
+  // Handle call end
+  socket.on('end-call', (data) => {
+    const { recipientId, conversationId } = data;
+    console.log(`Call ended by ${socket.userId}`);
+    
+    io.to(`user_${recipientId}`).emit('call-ended', {
+      userId: socket.userId,
+      conversationId
+    });
+  });
+
+  // WebRTC Signaling - Legacy support (kept for compatibility)
   socket.on('call-user', (data) => {
     const { userIdToCall, signalData, from, name, callType } = data;
     io.to(`user_${userIdToCall}`).emit('call-received', {

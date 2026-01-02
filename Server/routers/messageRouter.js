@@ -6,7 +6,9 @@ import {
   markMessagesAsRead,
   getUnreadCount,
   uploadChatImage,
-  getLocalChats
+  getLocalChats,
+  deleteConversation,
+  deleteMultipleConversations
 } from '../controller/messageController.js';
 import { verifyToken } from '../middleware/auth.js';
 import uploadChat from '../middleware/uploadChat.js';
@@ -23,6 +25,10 @@ router.put('/conversation/:conversationId/read', markMessagesAsRead);
 router.get('/unread-count', getUnreadCount);
 router.get('/local-chats', getLocalChats);
 router.post('/upload-image', uploadChat.single('image'), uploadChatImage);
+
+// Delete conversation routes
+router.delete('/conversation/:conversationId', deleteConversation);
+router.delete('/conversations', deleteMultipleConversations);
 
 export default router;
 

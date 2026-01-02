@@ -467,11 +467,10 @@ const TopNav = () => {
                     alt={adminUser?.name}
                     onError={(e) => {
                       e.target.style.display = 'none';
-                        const placeholder = e.target.nextElementSibling;
-                        if (placeholder) placeholder.style.display = 'flex';
-                      }}
-                    />
-                  ) : null}
+                      const placeholder = e.target.nextElementSibling;
+                      if (placeholder) placeholder.style.display = 'flex';
+                    }}
+                  />
                   <span style={{ display: (!adminUser?.hasProfilePicture || !adminUser?.profilePicture) ? 'flex' : 'none' }}>
                     {getInitials(adminUser?.name)}
                   </span>
